@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 from autoprompt import utils
 import autoprompt.create_trigger as ct
-
+from autoprompt.popsicle import AutoPopsicle  # 추가
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +65,7 @@ class Args:
         st.sidebar.markdown('### Training Parameters')
         model_name = st.sidebar.selectbox(
             "Model",
-            options=['roberta-large', 'bert-base-cased'],
+            options=['bert-base-cased', 'roberta-large'],  # 모델 옵션 수정
             help="Language model used for training and evaluation."
         )
         iters = int(st.sidebar.number_input(
@@ -134,7 +134,11 @@ class GlobalData:
     def from_pretrained(cls, model_name):
         logger.info(f'Loading pretrained model: {model_name}')
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        config, model, tokenizer = ct.load_pretrained(model_name)
+        
+
+        config = transformers.AutoConfig.from_pretrained(model_name, num_labels=15)  # 특성 수와 레이블에 맞게 설정
+        tokenizer = transformers.AutoTokenizer.from_pretrained(model_name)
+        model = AutoPopsicle.from_pretrained(model_name, config=config)  # AutoPopsicle 사용
         model.to(device)
         embeddings = ct.get_embeddings(model, config)
         embedding_gradient = ct.GradientStorage(embeddings)
