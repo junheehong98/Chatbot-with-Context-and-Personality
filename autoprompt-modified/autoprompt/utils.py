@@ -209,7 +209,7 @@ def add_task_specific_tokens(tokenizer):
 
 
 def load_tsv(fname):
-    with open(fname, 'r') as f:
+    with open(fname, 'r', encoding='utf-8') as f:
         reader = csv.DictReader(f, delimiter='\t')
         for row in reader:
             yield row
@@ -342,7 +342,7 @@ def load_classification_dataset(
     tokenizer,
     input_field_a,
     input_field_b=None,
-    label_field='label',
+    label_field='labels',
     label_map=None,
     limit=None
 ):
@@ -368,13 +368,38 @@ def load_classification_dataset(
             return_tensors='pt'
         )
         logger.debug(model_inputs)
-        label = instance[label_field]
-        if label not in label_map:
-            label_map[label] = len(label_map)
-        label_id = label_map[label]
-        label_id = torch.tensor([[label_id]])  # To make collator expectation
-        logger.debug(f'Label id: {label_id}')
-        instances.append((model_inputs, label_id))
+        
+        
+        # print(f"Loaded instance: {instance}")  # 디버깅 출력
+        # label = instance[label_field]
+        # print(f"Loaded label: {label}")  # 디버깅 출력
+        # if label not in label_map:
+        #     label_map[label] = len(label_map)
+        # label_id = label_map[label]
+        # label_id = torch.tensor([[label_id]])  # To make collator expectation
+        # logger.debug(f'Label id: {label_id}')
+        # instances.append((model_inputs, label_id))
+        
+        try:
+            # print(f"Loaded instance: {instance}")  # 로드된 데이터 인스턴스를 출력
+            label = instance[label_field]
+            # print(f"Loaded label: {label}")  # 로드된 레이블을 출력
+            
+            # 레이블 문자열을 리스트로 변환
+            label = json.loads(label)  # 문자열을 리스트로 변환
+            
+            # 레이블이 올바른 값들(0, 1, 2)로만 구성되었는지 확인
+            if any(l not in [0, 1, 2] for l in label):
+                raise ValueError(f"Label out of range: {label}")
+            
+            # 레이블을 tensor로 변환
+            label_id = torch.tensor(label, dtype=torch.long)  # (5,) 형태로 변환
+            logger.debug(f'Label id: {label_id}')
+            instances.append((model_inputs, label_id))
+        except Exception as e:
+            logger.error(f"Error processing instance: {instance}, Error: {e}")
+            
+            
     if limit:
         instances = random.sample(instances, limit)
     return instances, label_map

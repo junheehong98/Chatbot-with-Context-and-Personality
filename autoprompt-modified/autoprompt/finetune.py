@@ -21,6 +21,7 @@ from transformers import (
 from tqdm import tqdm
 
 import autoprompt.utils as utils
+from autoprompt.popsicle import AutoPopsicle 
 
 
 logger = logging.getLogger(__name__)
@@ -58,7 +59,7 @@ def main(args):
 
     config = AutoConfig.from_pretrained(args.model_name, num_labels=args.num_labels)
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
-    model = AutoModelForSequenceClassification.from_pretrained(args.model_name, config=config)
+    model = AutoPopsicle.from_pretrained(args.model_name, config=config)  # 수정된 부분: AutoPopsicle 사용**
     model.to(device)
 
     collator = utils.Collator(pad_token_id=tokenizer.pad_token_id)
@@ -123,10 +124,19 @@ def main(args):
             pbar = tqdm(train_loader)
             for model_inputs, labels in pbar:
                 model_inputs = {k: v.to(device) for k, v in model_inputs.items()}
-                labels = labels.to(device)
+                labels = labels.to(device)            
+                
+                
                 optimizer.zero_grad()
+                 # 수정된 부분: 모델 출력 및 손실 계산 방식 복원
                 logits, *_ = model(**model_inputs)
-                loss = F.cross_entropy(logits, labels.squeeze(-1))
+                # print(f"Logits shape: {logits.shape}")  # 로그: logits의 실제 크기를 출력합니다.
+                logits = logits.view(-1, args.num_labels, 3)  # (batch_size, num_labels, num_classes)
+                # 각 레이블에 대해 손실 계산 및 합산
+                loss = sum(F.cross_entropy(logits[:, i, :], labels[:, i]) for i in range(args.num_labels)) / args.num_labels
+                
+                
+                
                 loss.backward()
                 optimizer.step()
                 scheduler.step()
@@ -141,11 +151,14 @@ def main(args):
             with torch.no_grad():
                 for model_inputs, labels in dev_loader:
                     model_inputs = {k: v.to(device) for k, v in model_inputs.items()}
-                    labels = labels.to(device)
+                    labels = labels.to(device)                   
+                   
+                    
                     logits, *_ = model(**model_inputs)
-                    _, preds = logits.max(dim=-1)
-                    correct += (preds == labels.squeeze(-1)).sum().item()
-                    total += labels.size(0)
+                    logits = logits.view(-1, args.num_labels, 3)  # (batch_size, num_labels, num_classes)
+                    preds = torch.argmax(logits, dim=-1)  # 각 레이블에 대한 예측값 계산
+                    correct += (preds == labels).sum().item()
+                    total += labels.numel()
                 accuracy = correct / (total + 1e-13)
             logger.info(f'Accuracy: {accuracy : 0.4f}')
 
@@ -165,10 +178,12 @@ def main(args):
         for model_inputs, labels in test_loader:
             model_inputs = {k: v.to(device) for k, v in model_inputs.items()}
             labels = labels.to(device)
+            
             logits, *_ = model(**model_inputs)
-            _, preds = logits.max(dim=-1)
-            correct += (preds == labels.squeeze(-1)).sum().item()
-            total += labels.size(0)
+            logits = logits.view(-1, args.num_labels, 3)  # (batch_size, num_labels, num_classes)
+            preds = torch.argmax(logits, dim=-1)  # 각 레이블에 대한 예측값 계산
+            correct += (preds == labels).sum().item()
+            total += labels.numel()
         accuracy = correct / (total + 1e-13)
     logger.info(f'Accuracy: {accuracy : 0.4f}')
 
@@ -183,7 +198,7 @@ if __name__ == '__main__':
     parser.add_argument('--field-b', type=str, default=None)
     parser.add_argument('--label-field', type=str, default='label')
     parser.add_argument('--ckpt-dir', type=Path, default=Path('ckpt/'))
-    parser.add_argument('--num-labels', type=int, default=2)
+    parser.add_argument('--num-labels', type=int, default=3)
     parser.add_argument('--bsz', type=int, default=32)
     parser.add_argument('--epochs', type=int, default=3)
     parser.add_argument('--lr', type=float, default=2e-5)

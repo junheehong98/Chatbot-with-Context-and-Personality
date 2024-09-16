@@ -23,7 +23,7 @@ class Bertsicle(BertForSequenceClassification):
 
     def __init__(self, config):
         super().__init__(config)
-        num_classes = 3  # 각 특성에 대해 예측할 점수의 개수 (1점, 3점, 5점)
+        num_classes = 3  #  각 특성에 대해 예측할 점수의 개수 (1점, 2점, 3점)
         num_features = 5  # 예측할 감정 특성의 개수
         self.classifier = torch.nn.Linear(config.hidden_size, num_classes * num_features)  # 출력 크기: 3 x 5
 
@@ -99,7 +99,7 @@ class Robertasicle(RobertaForSequenceClassification):
 
         if labels is not None:
             loss_fct = CrossEntropyLoss()
-            loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
+            loss = loss_fct(logits.view(-1, 3), labels.view(-1))
             outputs = (loss,) + outputs
 
         return outputs  # (loss), logits, (hidden_states), (attentions)
