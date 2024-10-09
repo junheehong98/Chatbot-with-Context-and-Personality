@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot</title>
+    <link rel="stylesheet" href="static/css/chat_style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Chat with the Chatbot!</h1>
+        
+        <div class="chat-box">
+            {% for user_msg, bot_msg in chat_history %}
+                <div class="chat-message user-message">
+                    <p><strong>You:</strong> {{ user_msg }}</p>
+                </div>
+                <div class="chat-message bot-message">
+                    <p><strong>Chatbot:</strong> {{ bot_msg }}</p>
+                </div>
+            {% endfor %}
+        </div>
+
+        <div class="chat-input">
+            <form action="/chat" method="post" style="display: flex; width: 100%;">
+                <textarea name="user_input" class="input"></textarea>
+                <button type="submit">Send</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
