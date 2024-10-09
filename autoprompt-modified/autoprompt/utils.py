@@ -77,7 +77,9 @@ class Collator:
             sequence = [x[key] for x in model_inputs]
             padded = pad_squeeze_sequence(sequence, batch_first=True, padding_value=padding_value)
             padded_inputs[key] = padded
-        labels = pad_squeeze_sequence(labels, batch_first=True, padding_value=0)
+        # 레이블을 직접 스택
+        labels = torch.stack(labels)
+        # labels = pad_squeeze_sequence(labels, batch_first=True, padding_value=0)
         return padded_inputs, labels
 
 
@@ -153,17 +155,40 @@ class TriggerTemplatizer:
     def __call__(self, format_kwargs):
         # Format the template string
         format_kwargs = format_kwargs.copy()
-        label = format_kwargs.pop(self._label_field)
+        # 각각의 레이블 컬럼에서 값 추출
+        label1 = format_kwargs.pop('label1')
+        label2 = format_kwargs.pop('label2')
+        label3 = format_kwargs.pop('label3')
+        label4 = format_kwargs.pop('label4')
+        label5 = format_kwargs.pop('label5')
+        
+        labels = [int(label) for label in [label1, label2, label3, label4, label5]]
+        
+        
+        if not isinstance(labels, list):
+            raise TypeError(f"Expected list of labels, but got {type(labels)} instead.")
+    
+        
         text = self._template.format(**format_kwargs)
-        if label is None:
+        
+        
+        if text is None:
             raise Exception(f'Bad data: {text}')
+        
+        # 디버깅 출력 추가
+        tokenized_text = self._tokenizer.tokenize(text)
+        # print(f"Tokenized text: {tokenized_text}")
+        
+        # 토크나이즈된 토큰 ID 출력
+        token_ids = self._tokenizer.convert_tokens_to_ids(tokenized_text)
+        # print(f"Token IDs: {token_ids}")
 
         # Have the tokenizer encode the text and process the output to:
         # - Create a trigger and predict mask
         # - Replace the predict token with a mask token
         model_inputs = self._tokenizer.encode_plus(
             text,
-            add_special_tokens=self._add_special_tokens,
+            add_special_tokens=True,
             return_tensors='pt'
         )
         input_ids = model_inputs['input_ids']
@@ -180,16 +205,12 @@ class TriggerTemplatizer:
             sequence_b_indices = torch.arange(sep_token_indices[0], sep_token_indices[1] + 1).long().unsqueeze(0)
             model_inputs['token_type_ids'].scatter_(1, sequence_b_indices, 1)
 
-        # Encode the label(s)
-        if self._label_map is not None:
-            label = self._label_map[label]
-        label_id = encode_label(
-            tokenizer=self._tokenizer,
-            label=label,
-            tokenize=self._tokenize_labels
-        )
-
-        return model_inputs, label_id
+       
+            
+        # 레이블을 텐서로 변환 (숫자 그대로 사용)
+        label_ids = torch.tensor(labels, dtype=torch.long)  # 다중 레이블을 하나의 텐서로 결합
+    
+        return model_inputs, label_ids
 
 
 def add_task_specific_tokens(tokenizer):
@@ -277,31 +298,53 @@ def load_augmented_trigger_dataset(fname, templatizer, limit=None):
 
     for x in loader(fname):
         try:
-            sub_label = x['sub_label']
-            obj_label = x['obj_label']
+            if 'sub_label' in x and 'obj_label' in x:
+                sub_label = x['sub_label']
+                obj_label = x['obj_label']
 
-            # For relation extraction, skip facts that don't have context sentence
-            if 'evidences' not in x:
-                logger.warning('Skipping RE sample because it lacks context sentences: {}'.format(x))
-                continue
+                # For relation extraction, skip facts that don't have context sentence
+                if 'evidences' not in x:
+                    logger.warning('Skipping RE sample because it lacks context sentences: {}'.format(x))
+                    continue
 
-            evidences = x['evidences']
+                evidences = x['evidences']
 
-            # Gather all UNIQUE objects and their surface forms if its augmented relation extraction
-            for evidence in evidences:
-                obj_surface = evidence['obj_surface']
-                masked_sent = evidence['masked_sentence']
-                unique_objs_dict[obj_label].append(obj_surface)
-                
-            # Randomly pick a context sentence
-            obj_surface, masked_sent = random.choice([(evidence['obj_surface'], evidence['masked_sentence']) for evidence in evidences])
-            words = masked_sent.split()
-            if len(words) > MAX_CONTEXT_LEN:
-                # If the masked sentence is too long, use the first X tokens. For training we want to keep as many samples as we can.
-                masked_sent = ' '.join(words[:MAX_CONTEXT_LEN])
+                # Gather all UNIQUE objects and their surface forms if its augmented relation extraction
+                for evidence in evidences:
+                    obj_surface = evidence['obj_surface']
+                    masked_sent = evidence['masked_sentence']
+                    unique_objs_dict[obj_label].append(obj_surface)
+                    
+                # Randomly pick a context sentence
+                obj_surface, masked_sent = random.choice([(evidence['obj_surface'], evidence['masked_sentence']) for evidence in evidences])
+                words = masked_sent.split()
+                if len(words) > MAX_CONTEXT_LEN:
+                    # If the masked sentence is too long, use the first X tokens. For training we want to keep as many samples as we can.
+                    masked_sent = ' '.join(words[:MAX_CONTEXT_LEN])
             
-            x['context'] = masked_sent
-            facts.append(x)
+                x['context'] = masked_sent
+                facts.append(x)
+            else:
+                # sub_label과 obj_label이 없는 경우, input_text와 label들을 사용하여 처리
+                input_text = x['input_text']
+                label1 = int(x['label1'])
+                label2 = int(x['label2'])
+                label3 = int(x['label3'])
+                label4 = int(x['label4'])
+                label5 = int(x['label5'])
+                labels = [label1, label2, label3, label4, label5]
+
+                # 템플릿과 레이블을 이용해 데이터 생성
+                model_inputs, label_id = templatizer({
+                    'input_text': input_text,
+                    'label1': label1,
+                    'label2': label2,
+                    'label3': label3,
+                    'label4': label4,
+                    'label5': label5,
+                })
+                instances.append((model_inputs, label_id))
+                
         except ValueError as e:
             logger.warning('Encountered error "%s" when processing "%s".  Skipping.', e, x)
 
@@ -342,7 +385,7 @@ def load_classification_dataset(
     tokenizer,
     input_field_a,
     input_field_b=None,
-    label_field='labels',
+    label_field=['label1', 'label2', 'label3', 'label4', 'label5'],
     label_map=None,
     limit=None
 ):
@@ -355,8 +398,7 @@ def load_classification_dataset(
         Maps text to id tensors.
     sentence1 :
     """
-    instances = []
-    label_map = label_map or {}
+    instances = []    
     loader = LOADERS[fname.suffix]
     for instance in loader(fname):
         logger.debug(instance)
@@ -382,18 +424,14 @@ def load_classification_dataset(
         
         try:
             # print(f"Loaded instance: {instance}")  # 로드된 데이터 인스턴스를 출력
-            label = instance[label_field]
-            # print(f"Loaded label: {label}")  # 로드된 레이블을 출력
+            # 각 레이블 컬럼에서 레이블 값을 추출하여 리스트로 저장
+            labels = [int(instance[label_name]) for label_name in label_field]
+            # print(f"Loaded label: {label}")  # 로드된 레이블을 출력         
+           
             
-            # 레이블 문자열을 리스트로 변환
-            label = json.loads(label)  # 문자열을 리스트로 변환
-            
-            # 레이블이 올바른 값들(0, 1, 2)로만 구성되었는지 확인
-            if any(l not in [0, 1, 2] for l in label):
-                raise ValueError(f"Label out of range: {label}")
             
             # 레이블을 tensor로 변환
-            label_id = torch.tensor(label, dtype=torch.long)  # (5,) 형태로 변환
+            label_id = torch.tensor(labels, dtype=torch.long)  # (5,) 형태로 변환
             logger.debug(f'Label id: {label_id}')
             instances.append((model_inputs, label_id))
         except Exception as e:

@@ -25,7 +25,15 @@ class Bertsicle(BertForSequenceClassification):
         super().__init__(config)
         num_classes = 3  #  각 특성에 대해 예측할 점수의 개수 (1점, 2점, 3점)
         num_features = 5  # 예측할 감정 특성의 개수
-        self.classifier = torch.nn.Linear(config.hidden_size, num_classes * num_features)  # 출력 크기: 3 x 5
+        hidden_size = config.hidden_size  # BERT의 hidden size
+        self.bert.eval()
+        # BERT 파라미터 freeze
+        for param in self.bert.parameters():
+            param.requires_grad = False       
+        
+        # 두 개의 dense layer 추가
+        self.dense1 = torch.nn.Linear(hidden_size, hidden_size // 2)  # 첫 번째 dense layer
+        self.dense2 = torch.nn.Linear(hidden_size // 2, num_classes * num_features)  # 두 번째 dense layer
 
     def forward(
         self,
@@ -50,16 +58,23 @@ class Bertsicle(BertForSequenceClassification):
         pooled_output = outputs[0]
         pooled_output = pooled_output[:,1:,:] #eliminating CLS token
         pooled_output = torch.mean(pooled_output, dim=1)
-
         pooled_output = self.dropout(pooled_output)
-        logits = self.classifier(pooled_output).view(-1, 5, 3)  # 5개의 특성, 각 특성당 3개의 점수 예측
-
+        
+         # 두 개의 dense layer를 통과
+        x = torch.relu(self.dense1(pooled_output))  # 첫 번째 dense layer에 ReLU 활성화 함수 적용
+        logits = self.dense2(x)  # 두 번째 dense layer로 출력
+        logits = logits.view(-1, 5, 3)  # 5개의 특성, 각 특성당 3개의 점수 예측
+        
         outputs = (logits,) + outputs[2:]  # add hidden states and attention if they are here
 
         if labels is not None:
+            '''
             loss_fct = CrossEntropyLoss()
             loss = loss_fct(logits.view(-1, 3), labels.view(-1))
             outputs = (loss,) + outputs
+            '''
+            # 손실 계산을 여기서 제거합니다.
+            pass  # 또는 아무 작업도 하지 않음
 
         return outputs  # (loss), logits, (hidden_states), (attentions)
 
@@ -70,8 +85,16 @@ class Robertasicle(RobertaForSequenceClassification):
         super().__init__(config)
         num_classes = 3  # 각 특성에 대해 예측할 점수의 개수 (1점, 3점, 5점)
         num_features = 5  # 예측할 감정 특성의 개수
-        self.classifier = torch.nn.Linear(config.hidden_size, num_classes * num_features)  # 출력 크기: 3 x 5
+        
+        hidden_size = config.hidden_size  # RoBERTa의 hidden size
 
+        # RoBERTa 파라미터 freeze
+        for param in self.roberta.parameters():
+            param.requires_grad = False
+
+        # 두 개의 dense layer 추가
+        self.dense1 = torch.nn.Linear(hidden_size, hidden_size // 2)
+        self.dense2 = torch.nn.Linear(hidden_size // 2, num_classes * num_features)
     def forward(
         self,
         input_ids=None,
@@ -94,7 +117,11 @@ class Robertasicle(RobertaForSequenceClassification):
         sequence_output = outputs[0]
         sequence_output = sequence_output[:, 1:, :]  # eliminating <s> token
         pooled_sequence_output = torch.mean(sequence_output, dim=1, keepdim=True)
-        logits = self.classifier(pooled_sequence_output)
+        # 두 개의 dense layer를 통과
+        x = torch.relu(self.dense1(pooled_sequence_output))
+        logits = self.dense2(x)
+
+        logits = logits.view(-1, 5, 3)  # 5개의 특성, 각 특성당 3개의 점수 예측
         outputs = (logits,) + outputs[2:]
 
         if labels is not None:

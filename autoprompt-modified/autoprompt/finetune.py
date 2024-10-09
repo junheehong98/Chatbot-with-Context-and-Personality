@@ -57,8 +57,9 @@ def main(args):
     set_seed(args.seed)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    config = AutoConfig.from_pretrained(args.model_name, num_labels=args.num_labels)
+    config = AutoConfig.from_pretrained(args.model_name, num_labels=5)
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
+    utils.add_task_specific_tokens(tokenizer)  # 특수 토큰 추가
     model = AutoPopsicle.from_pretrained(args.model_name, config=config)  # 수정된 부분: AutoPopsicle 사용**
     model.to(device)
 
@@ -196,9 +197,10 @@ if __name__ == '__main__':
     parser.add_argument('--test', type=Path)
     parser.add_argument('--field-a', type=str)
     parser.add_argument('--field-b', type=str, default=None)
-    parser.add_argument('--label-field', type=str, default='label')
+    parser.add_argument('--label-field', nargs='+', type=str, default=['label1', 'label2', 'label3', 'label4', 'label5'])
+
     parser.add_argument('--ckpt-dir', type=Path, default=Path('ckpt/'))
-    parser.add_argument('--num-labels', type=int, default=3)
+    parser.add_argument('--num-labels', type=int, default=5)
     parser.add_argument('--bsz', type=int, default=32)
     parser.add_argument('--epochs', type=int, default=3)
     parser.add_argument('--lr', type=float, default=2e-5)
