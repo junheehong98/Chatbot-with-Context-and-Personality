@@ -53,6 +53,7 @@ def chat():
         user_input = request.form.get('user_input')
         if user_input.strip():
             # OpenAI API 요청
+            session.permanent = True
             conversation = [{"role": "system", "content": system_prompt}]
             for user_msg, bot_msg in session['trim_history']:
                 conversation.append({"role": "user", "content": user_msg})
@@ -82,4 +83,5 @@ def chat():
 
 # 서버 실행
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', debug=True)
+
