@@ -11,6 +11,8 @@ body {
     max-width: 800px;
     max-height: 700px; 
     overflow-y: auto;
+    flex-direction: column;
+    display: flex;
     margin: 0 auto;
     background-color: #bbb7b7;
     padding: 20px;
@@ -20,6 +22,10 @@ body {
 .chat-message {
     margin-bottom: 10px;
     clear: both; /* 각 메시지가 겹치지 않도록 설정 */
+    margin: 10px 0;
+    padding: 10px;
+    border-radius: 10px;
+    max-width: 80%;
 }
 .user-message {
     float: right; /* 사용자 메시지를 오른쪽으로 정렬 */
@@ -29,20 +35,30 @@ body {
     max-width: 70%;
     text-align: right;
     color: #000000;
+    background-color: #d9fdd3;
+    align-self: flex-end;
 }
 .bot-message {
     float: left; /* 봇 메시지를 왼쪽으로 정렬 */
-    background-color: #f1f1f1;
     padding: 10px;
     border-radius: 10px;
     max-width: 70%;
     text-align: left;
     color: #000000;
+    align-self: flex-start;
+    background-color: #fff;
 }
 .chat-input {
     display: flex;
     align-items: center;
     margin-top: 20px;
+}
+.input {
+    flex: 1;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    padding: 10px;
+    font-size: 16px;
 }
 textarea {
     width: 100%; /* 너비를 100%로 설정 */
@@ -65,4 +81,39 @@ button {
 }
 button:hover {
     background-color: #45a049;
+}
+.evaluate-form {
+    display: inline-block;
+    margin-left: 10px;
+    vertical-align: middle;
+}
+
+
+button[type="submit"] {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+    border-radius: 5px;
+}
+
+button[type="submit"]:hover {
+    background-color: #45a049;
+}
+
+.end-chat-btn {
+    margin-top: 10px;
+    padding: 5px 10px;
+    font-size: 14px;
+    background-color: #ff5555;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.end-chat-btn:hover {
+    background-color: #ff3333;
 }
