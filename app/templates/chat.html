@@ -9,8 +9,13 @@
 <body>
     <div class="container">
         <h1>Chat with the Chatbot!</h1>
-        
-        <div class="chat-box">
+
+        <form method="POST" action="/end_chat">
+            <button type="submit" class="end-chat-btn">Back to main</button>
+        </form>
+
+        <div class="chat-box" id="chat-box">
+            <!-- Chat history here, loaded dynamically -->
             {% for user_msg, bot_msg in chat_history %}
                 <div class="chat-message user-message">
                     <p><strong>You:</strong> {{ user_msg }}</p>
@@ -22,11 +27,77 @@
         </div>
 
         <div class="chat-input">
-            <form action="/chat" method="post" style="display: flex; width: 100%;">
-                <textarea name="user_input" class="input"></textarea>
+            <form id="chat-form" method="post" action="/chat" style="display: flex; width: 100%;">
+                <textarea id="user-input" name="user_input" class="input"></textarea>
                 <button type="submit">Send</button>
             </form>
         </div>
     </div>
+
+    <script>
+        function typeText(element, text, speed = 50) {
+            let index = 0;
+            element.innerHTML = ''; // Clear existing content
+            function type() {
+                if (index < text.length) {
+                    element.innerHTML += text.charAt(index);
+                    index++;
+                    setTimeout(type, speed);
+                }
+            }
+            type();
+        }
+
+        function addBotMessage(botMessage) {
+            const botMessageDiv = document.createElement('div');
+            botMessageDiv.classList.add('chat-message', 'bot-message');
+            document.querySelector('#chat-box').appendChild(botMessageDiv);
+
+            typeText(botMessageDiv, botMessage);  // Type out message with delay
+            scrollToBottom();
+        }
+
+        function addUserMessage(userMessage) {
+            const userMessageDiv = document.createElement('div');
+            userMessageDiv.classList.add('chat-message', 'user-message');
+            userMessageDiv.innerHTML = `<p><strong>You:</strong> ${userMessage}</p>`;
+            document.querySelector('#chat-box').appendChild(userMessageDiv);
+
+            scrollToBottom();
+        }
+
+        function scrollToBottom() {
+            const chatBox = document.querySelector('#chat-box');
+            chatBox.scrollTop = chatBox.scrollHeight;  // Scroll to the bottom
+        }
+
+        // Handle chat form submission via AJAX (no page reload)
+        document.getElementById('chat-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const userInput = document.getElementById('user-input').value;
+        addUserMessage(userInput);  // 사용자의 메시지를 바로 화면에 표시
+        document.getElementById('user-input').value = '';  // 입력 필드 초기화
+
+        // AJAX로 서버에 요청 보내기
+        const response = await fetch('/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ user_input: userInput })  // JSON 데이터로 전송
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            if (data.bot_msg) {
+                addBotMessage(data.bot_msg);  // 챗봇 응답을 화면에 표시
+            }
+        } else {
+            console.error('Error:', response.statusText);  // 오류 메시지 출력
+        }
+    });
+
+    </script>
 </body>
 </html>
