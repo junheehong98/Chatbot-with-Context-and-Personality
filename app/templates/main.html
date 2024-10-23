@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Select Situation and Personality</title>
+    <link rel="stylesheet" href="static/css/main_style.css">
+    
+</head>
+<body>
+    <div class="container">
+        <h1>Select Situation and Personality</h1>
+        <form action="/" method="post">
+            <h3>Select situation</h3>
+            <label for="situation">Situation:</label>
+            <select name="situation" id="situation">
+                {% for situation in situations %}
+                <option value="{{ situation }}">{{ situation }}</option>
+                {% endfor %}
+            </select><br><br>
+            
+            <h3>Select characteristic</h3>
+
+            {% for i in range(5) %}
+                <label for="characteristic{{ i }}"></label>
+                <select name="characteristic{{ i }}" id="characteristic{{ i }}">
+                    <option value="">-- Select --</option>
+                    {% for characteristic in characteristics[i] %}
+                    <option value="{{ characteristic }}">{{ characteristic }}</option>
+                    {% endfor %}
+                </select><br><br>
+            {% endfor %}
+
+            <button type="submit">Start Chatting</button>
+        </form>
+    </div>
+</body>
+</html>
