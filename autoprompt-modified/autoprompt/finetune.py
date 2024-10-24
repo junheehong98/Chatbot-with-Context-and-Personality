@@ -134,8 +134,10 @@ def main(args):
                 # print(f"Logits shape: {logits.shape}")  # 로그: logits의 실제 크기를 출력합니다.
                 logits = logits.view(-1, args.num_labels, 3)  # (batch_size, num_labels, num_classes)
                 # 각 레이블에 대해 손실 계산 및 합산
-                loss = sum(F.cross_entropy(logits[:, i, :], labels[:, i]) for i in range(args.num_labels)) / args.num_labels
-                
+                # loss = sum(F.cross_entropy(logits[:, i, :], labels[:, i]) for i in range(args.num_labels)) / args.num_labels
+                loss_fct = CrossEntropyLoss(label_smoothing=0.1)  # Label Smoothing 적용
+                loss = sum(loss_fct(logits[:, i, :], labels[:, i]) for i in range(args.num_labels)) / args.num_labels
+
                 
                 
                 loss.backward()

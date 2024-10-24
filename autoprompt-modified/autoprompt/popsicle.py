@@ -39,7 +39,21 @@ class Bertsicle(BertForSequenceClassification):
         self.dense3 = torch.nn.Linear(hidden_size // 2, hidden_size // 4)
         self.dense4 = torch.nn.Linear(hidden_size // 4, hidden_size // 8)
         self.dense5 = torch.nn.Linear(hidden_size // 8, num_classes * num_features)
-        self.dropout = torch.nn.Dropout(0.1)
+        self.dropout = torch.nn.Dropout(0.3)
+
+
+        self.bn1 = torch.nn.BatchNorm1d(hidden_size)
+        self.bn2 = torch.nn.BatchNorm1d(hidden_size // 2)
+        self.bn3 = torch.nn.BatchNorm1d(hidden_size // 4)
+        self.bn4 = torch.nn.BatchNorm1d(hidden_size // 8)
+
+
+
+
+
+
+
+
 
 
     def forward(
@@ -68,10 +82,10 @@ class Bertsicle(BertForSequenceClassification):
         pooled_output = self.dropout(pooled_output)
         
          # 두 개의 dense layer를 통과
-        x = torch.relu(self.dense1(pooled_output))
-        x = torch.relu(self.dense2(x))
-        x = torch.relu(self.dense3(x))
-        x = torch.relu(self.dense4(x))
+        x = torch.relu(self.bn1(self.dense1(pooled_output)))
+        x = torch.relu(self.bn2(self.dense2(x)))
+        x = torch.relu(self.bn3(self.dense3(x)))
+        x = torch.relu(self.bn4(self.dense4(x)))
         logits = self.dense5(x)
 
 
