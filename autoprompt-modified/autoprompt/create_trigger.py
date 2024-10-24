@@ -606,8 +606,15 @@ def run_model(args):
     
      # 모든 레이블 조합에 대해 트리거를 탐색
     label_combinations = create_label_combinations()
+    start_index = args.start_index if args.start_index < len(label_combinations) else 0
+    combinations_to_process = label_combinations[start_index:]
+
+
+    logger.info(f'Starting from index {start_index} out of {len(label_combinations)} combinations.')
+
+
     
-    for combination in tqdm(label_combinations, desc="Processing label combinations"):
+    for combination in tqdm(combinations_to_process, desc="Processing label combinations"):
         logger.info(f'Evaluating combination: {combination}')
         
         # 트리거 탐색 및 평가
@@ -691,6 +698,11 @@ if __name__ == '__main__':
     parser.add_argument('--sentence-size', type=int, default=50)
 
     parser.add_argument('--debug', action='store_true')
+
+    # ArgumentParser에 추가
+    parser.add_argument('--start-index', type=int, default=0, help='Start index for label combination processing')
+
+
     args = parser.parse_args()
 
     if args.debug:
