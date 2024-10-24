@@ -12,6 +12,7 @@ import random
 import numpy as np
 import torch
 import torch.nn.functional as F
+from torch.nn import CrossEntropyLoss  # 임포트 추가
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import LambdaLR
 import transformers
