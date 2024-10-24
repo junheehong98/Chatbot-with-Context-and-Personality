@@ -26,14 +26,21 @@ class Bertsicle(BertForSequenceClassification):
         num_classes = 3  #  각 특성에 대해 예측할 점수의 개수 (1점, 2점, 3점)
         num_features = 5  # 예측할 감정 특성의 개수
         hidden_size = config.hidden_size  # BERT의 hidden size
+
+
         self.bert.eval()
         # BERT 파라미터 freeze
         for param in self.bert.parameters():
             param.requires_grad = False       
         
-        # 두 개의 dense layer 추가
-        self.dense1 = torch.nn.Linear(hidden_size, hidden_size // 2)  # 첫 번째 dense layer
-        self.dense2 = torch.nn.Linear(hidden_size // 2, num_classes * num_features)  # 두 번째 dense layer
+        # 5개의 Dense Layer 추가
+        self.dense1 = torch.nn.Linear(hidden_size, hidden_size)
+        self.dense2 = torch.nn.Linear(hidden_size, hidden_size // 2)
+        self.dense3 = torch.nn.Linear(hidden_size // 2, hidden_size // 4)
+        self.dense4 = torch.nn.Linear(hidden_size // 4, hidden_size // 8)
+        self.dense5 = torch.nn.Linear(hidden_size // 8, num_classes * num_features)
+        self.dropout = torch.nn.Dropout(0.1)
+
 
     def forward(
         self,
@@ -61,8 +68,13 @@ class Bertsicle(BertForSequenceClassification):
         pooled_output = self.dropout(pooled_output)
         
          # 두 개의 dense layer를 통과
-        x = torch.relu(self.dense1(pooled_output))  # 첫 번째 dense layer에 ReLU 활성화 함수 적용
-        logits = self.dense2(x)  # 두 번째 dense layer로 출력
+        x = torch.relu(self.dense1(pooled_output))
+        x = torch.relu(self.dense2(x))
+        x = torch.relu(self.dense3(x))
+        x = torch.relu(self.dense4(x))
+        logits = self.dense5(x)
+
+
         logits = logits.view(-1, 5, 3)  # 5개의 특성, 각 특성당 3개의 점수 예측
         
         outputs = (logits,) + outputs[2:]  # add hidden states and attention if they are here
