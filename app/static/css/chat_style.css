@@ -1,0 +1,129 @@
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background-color: #f4f4f9;
+}
+.chat-box {
+    width: 800px;
+    max-height: 700px; 
+    overflow-y: auto;
+    flex-direction: column;
+    display: flex;
+    margin: 0 auto;
+    background-color: #bbb7b7;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+.chat-message {
+    margin-bottom: 10px;
+    clear: both; /* 각 메시지가 겹치지 않도록 설정 */
+    margin: 10px 0;
+    padding: 10px;
+    border-radius: 10px;
+    max-width: 80%;
+}
+.user-message {
+    float: right; /* 사용자 메시지를 오른쪽으로 정렬 */
+    background-color: #d1e7dd;
+    padding: 10px;
+    border-radius: 10px;
+    max-width: 70%;
+    text-align: right;
+    color: #000000;
+    background-color: #d9fdd3;
+    align-self: flex-end;
+}
+.bot-message {
+    float: left; /* 봇 메시지를 왼쪽으로 정렬 */
+    padding: 10px;
+    border-radius: 10px;
+    max-width: 70%;
+    text-align: left;
+    color: #000000;
+    align-self: flex-start;
+    background-color: #fff;
+}
+.chat-input {
+    display: flex;
+    align-items: center;
+    margin-top: 20px;
+}
+.input {
+    flex: 1;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    padding: 10px;
+    font-size: 16px;
+    text-align: left;
+}
+textarea {
+    width: 100%; /* 너비를 100%로 설정 */
+    height: 30px; /* 높이를 줄임 */
+    padding: 8px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    font-size: 14pt; /* 글자 크기 조정 */
+    resize: none; /* 크기 조절 막기 */
+}
+button {
+    margin-left: 10px;
+    margin-right: 10px; /* 버튼을 입력창 오른쪽에 위치 */
+    padding: 10px 20px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 10pt; /* 버튼 글자 크기 */
+}
+button:hover {
+    background-color: #45a049;
+}
+.evaluate-form {
+    display: inline-block;
+    margin-left: 10px;
+    vertical-align: middle;
+    
+}
+
+
+button[type="submit"] {
+    background-color: #45a049;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    font-size: 10pt;
+    cursor: pointer;
+    border-radius: 20px;
+}
+
+button[type="submit"]:hover {
+    background-color: #45a049;
+}
+
+.end-chat-btn {
+    margin-top: 10px;
+    margin-bottom: 10px;
+    padding: 5px 10px;
+    font-size: 18px;
+    background-color: #2c2c2c;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.end-chat-btn:hover {
+    background-color: #686565;
+}
+
+h1 {
+    font-size: 40px;
+    font-weight: bold;
+    text-align: center;
+}

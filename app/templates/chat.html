@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot</title>
+    <link rel="stylesheet" href="static/css/chat_style.css">
+    <style>
+        .chat-message {
+            display: flex; /* Use flexbox for horizontal alignment */
+            align-items: flex-start; /* Align items to the top */
+            margin-bottom: 10px; /* Space between messages */
+        }
+        .bot-message {
+            flex: 1; /* Allow chatbot message to take available space */
+            position: relative; /* Position for rating box */
+        }
+        .rating-box {
+            display: flex; /* Align buttons in a row */
+            flex-direction: row; /* Stack buttons vertically */
+            align-items: center; /* Center align */
+            margin-right: 10px; /* Space from the bot message */
+            padding: 10px; /* Padding inside the box */
+            background-color: #bbb7b7; /* Transparent background */
+            
+            border-radius: 5px; /* Rounded corners */
+            float:right;
+            max-width:40%;
+            align-self: flex-start;
+        }
+        .evaluation-btn {
+            background-color: #6c996c;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 10pt;
+            cursor: pointer;
+            border-radius: 20px;
+        }
+        .rating-button {
+            font-size: 12px; /* Smaller font size for the rating button */
+            cursor: pointer; /* Change cursor to pointer for better UX */
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Chat with the Chatbot!</h1>
+
+        <form method="POST" action="/end_chat">
+            <button class="end-chat-btn">Back to main</button>
+        </form>
+
+        <div class="chat-box" id="chat-box">
+            <!-- Chat history here, loaded dynamically -->
+            {% for user_msg, bot_msg in chat_history %}
+                <div class="chat-message user-message">
+                    <p><strong>You:</strong> {{ user_msg }}</p>
+                </div>
+                <div class="chat-message bot-message">
+                    <p><strong>Chatbot:</strong> {{ bot_msg }}</p> 
+                </div>
+                <div class="rating-box">
+                    <button class="rating-button" onclick="toggleRatingButtons(this)">Rate</button>
+                    <div class="evaluation-buttons" style="display: none;">
+                        <form method="POST" action="/evaluate" style="display: inline;">
+                            <input type="hidden" name="bot_msg" value="{{ bot_msg }}">
+                            <button type="submit" name="rating" value="good" class="evaluation-btn">Good</button>
+                            <button type="submit" name="rating" value="soso" class="evaluation-btn">So-so</button>
+                            <button type="submit" name="rating" value="bad" class="evaluation-btn">Bad</button>
+                        </form>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+
+        <div class="chat-input">
+            <form id="chat-form" method="post" action="/chat" style="display: flex; width: 100%;">
+                <textarea id="user-input" name="user_input" class="input"></textarea>
+                <button type="submit">Send</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function toggleRatingButtons(button) {
+            const evaluationButtons = button.nextElementSibling; // Select the evaluation buttons container
+            if (evaluationButtons.style.display === "none" || evaluationButtons.style.display === "") {
+                evaluationButtons.style.display = "block"; // Show the buttons
+            } else {
+                evaluationButtons.style.display = "none"; // Hide the buttons
+            }
+        }
+
+        function typeText(element, text, speed = 30) {
+            let index = 0;
+            element.innerHTML = ''; // Clear existing content
+            function type() {
+                if (index < text.length) {
+                    element.innerHTML += text.charAt(index);
+                    index++;
+                    setTimeout(type, speed);
+                }
+            }
+            type();
+        }
+
+        function addBotMessage(botMessage) {
+            const botMessageDiv = document.createElement('div');
+            botMessageDiv.classList.add('chat-message', 'bot-message');
+            const botLabel = document.createElement('strong');
+            botLabel.textContent = 'Chatbot: ';
+            document.querySelector('#chat-box').appendChild(botMessageDiv);
+
+            typeText(botMessageDiv, botMessage);  // Type out message with delay
+            scrollToBottom();
+        }
+
+        function addUserMessage(userMessage) {
+            const userMessageDiv = document.createElement('div');
+            userMessageDiv.classList.add('chat-message', 'user-message');
+            userMessageDiv.innerHTML = `<p><strong>You:</strong> ${userMessage}</p>`;
+            document.querySelector('#chat-box').appendChild(userMessageDiv);
+
+            scrollToBottom();
+        }
+
+        function scrollToBottom() {
+            const chatBox = document.querySelector('#chat-box');
+            chatBox.scrollTop = chatBox.scrollHeight;  // Scroll to the bottom
+        }
+
+        // Handle chat form submission via AJAX (no page reload)
+        document.getElementById('chat-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const userInput = document.getElementById('user-input').value;
+            addUserMessage(userInput);  // Show user's message immediately
+            document.getElementById('user-input').value = '';  // Clear input field
+
+            // Send request to server via AJAX
+            const response = await fetch('/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ user_input: userInput })  // Send as JSON
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.bot_msg) {
+                    addBotMessage(data.bot_msg);  // Display chatbot response
+                }
+            } else {
+                console.error('Error:', response.statusText);  // Log error message
+            }
+        });
+
+    </script>
+</body>
+</html>
