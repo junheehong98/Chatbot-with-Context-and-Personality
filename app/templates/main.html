@@ -6,31 +6,19 @@
     <title>Select Situation and Personality</title>
     <link rel="stylesheet" href="static/css/main_style.css">
     <script>
-        // Function to update hidden input field when a situation is selected and highlight the selected button
         function selectSituation(situation, button) {
             document.getElementById('situationInput').value = situation;
-
-            // Remove 'selected-btn' class from all situation buttons
             const situationButtons = document.querySelectorAll('.situation-btn');
             situationButtons.forEach(btn => btn.classList.remove('selected-btn'));
-
-            // Add 'selected-btn' class to the clicked button
             button.classList.add('selected-btn');
         }
 
-        // Function to update hidden input field when a characteristic is selected and highlight the selected button
         function selectCharacteristic(index, characteristic, button) {
-            // 1. 선택된 특성을 숨겨진 input 필드에 저장
-            document.getElementById('characteristic'+index).value = characteristic;
-
-            // 2. 동일한 그룹 내에서만 'selected-btn' 클래스를 제거
+            document.getElementById('characteristic' + index).value = characteristic;
             const characteristicGroup = document.querySelectorAll(`.characteristic-group-${index} .characteristic-btn`);
             characteristicGroup.forEach(btn => btn.classList.remove('selected-btn'));
-
-            // 3. 클릭된 버튼에 'selected-btn' 클래스를 추가하여 시각적으로 선택되었음을 표시
             button.classList.add('selected-btn');
         }
-
     </script>
 </head>
 <body>
@@ -38,10 +26,8 @@
         <h1 style="font-size: 36px;">Select Situation and Personality</h1>
 
         <form action="/" method="post">
-            <!-- Select Situation -->
             <h3 style="font-size: 24px;">Select situation</h3>
             <div>
-                <!-- Buttons for situation -->
                 <button type="button" class="situation-btn" onclick="selectSituation('Subway', this)">Subway</button>
                 <button type="button" class="situation-btn" onclick="selectSituation('Lunch', this)">Lunch</button>
                 <button type="button" class="situation-btn" onclick="selectSituation('Library', this)">Library</button>
@@ -50,22 +36,17 @@
             </div>
             <input type="hidden" name="situation" id="situationInput">
 
-            <!-- Select Characteristics -->
             <h3 style="font-size: 24px;">Select characteristics</h3>
             <div>
                 {% for characteristic_set in characteristics %}
-                    <!-- Buttons for each characteristic set (now 3 choices) -->
-                    <div class="characteristic-group characteristic-group-{{ loop.index0 }}">  <!-- loop.index0는 0부터 시작 -->
-                        <button type="button" class="characteristic-btn" onclick="selectCharacteristic({{ loop.index0 }}, '{{ characteristic_set[0] }}', this)">{{ characteristic_set[0] }}</button>
-                        <button type="button" class="characteristic-btn" onclick="selectCharacteristic({{ loop.index0 }}, '{{ characteristic_set[1] }}', this)">{{ characteristic_set[1] }}</button>
-                        <button type="button" class="characteristic-btn" onclick="selectCharacteristic({{ loop.index0 }}, '{{ characteristic_set[2] }}', this)">{{ characteristic_set[2] }}</button>
+                    <div class="characteristic-group characteristic-group-{{ loop.index0 }}">
+                        <button type="button" class="characteristic-btn" onclick="selectCharacteristic('{{ loop.index0 }}', '{{ characteristic_set[0] }}', this)">{{ characteristic_set[0] }}</button>
+                        <button type="button" class="characteristic-btn" onclick="selectCharacteristic('{{ loop.index0 }}', '{{ characteristic_set[1] }}', this)">{{ characteristic_set[1] }}</button>
                     </div>
                     <input type="hidden" name="characteristic{{ loop.index0 }}" id="characteristic{{ loop.index0 }}">
                 {% endfor %}
             </div>
-            
 
-            <!-- Submit Button -->
             <button type="submit" class="submit">Start Chatting</button>
         </form>
     </div>
