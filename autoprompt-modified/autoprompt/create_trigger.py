@@ -491,9 +491,13 @@ def evaluate_candidates(model, predictor, train_loader, averaged_grad, trigger_i
                                 increase_loss=False,
                                 num_candidates=args.num_cand,
                                 filter=filter)
+    
+    # Ensure candidates and candidate_scores have the same size
+    num_candidates = len(candidates)
+    # candidate_scores = torch.zeros(args.num_cand, device=trigger_ids.device)
+    candidate_scores = torch.zeros(num_candidates, device=trigger_ids.device)
 
-    current_score = 0
-    candidate_scores = torch.zeros(args.num_cand, device=trigger_ids.device)
+    current_score = 0    
     denom = 0
 
     train_iter = iter(train_loader)
@@ -508,6 +512,7 @@ def evaluate_candidates(model, predictor, train_loader, averaged_grad, trigger_i
 
         model_inputs = {k: v.to(trigger_ids.device) for k, v in model_inputs.items()}
         labels = labels.to(trigger_ids.device)
+        
         with torch.no_grad():
             predict_logits = predictor(model_inputs, trigger_ids)
             eval_metric = evaluation_fn(predict_logits, labels)
