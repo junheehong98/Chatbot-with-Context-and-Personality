@@ -156,11 +156,11 @@ class TriggerTemplatizer:
         # Format the template string
         format_kwargs = format_kwargs.copy()
         # 각각의 레이블 컬럼에서 값 추출
-        label1 = format_kwargs.get('Label1')
-        label2 = format_kwargs.get('Label2')
-        label3 = format_kwargs.get('Label3')
-        label4 = format_kwargs.get('Label4')
-        label5 = format_kwargs.get('Label5')
+        label1 = format_kwargs.pop('Label1')
+        label2 = format_kwargs.pop('Label2')
+        label3 = format_kwargs.pop('Label3')
+        label4 = format_kwargs.pop('Label4')
+        label5 = format_kwargs.pop('Label5')
         
         labels = [int(label) for label in [label1, label2, label3, label4, label5]]
         
@@ -260,31 +260,6 @@ def load_trigger_dataset(fname, templatizer, use_ctx, limit=None):
     instances = []
 
     for x in loader(fname):
-        if 'text' not in x or any(f'Label{i}' not in x for i in range(1, 6)):
-            logger.warning("Missing required fields in data. Skipping row.")
-            continue
-
-        # logger.info(f"Loaded row: {x}")  # 디버깅 추가
-
-        try:
-            input_text = x['text']
-            labels = [int(x[f'Label{i}']) for i in range(1, 6)]
-            model_inputs, label_id = templatizer({
-                'input_text': input_text,
-                'Label1': labels[0],
-                'Label2': labels[1],
-                'Label3': labels[2],
-                'Label4': labels[3],
-                'Label5': labels[4],
-            })
-            instances.append((model_inputs, label_id))
-        except ValueError as e:
-            logger.warning('Encountered error "%s" when processing "%s". Skipping.', e, x)
-    logger.info(f"Number of instances loaded: {len(instances)}")  # 디버깅 추가
-    return instances
-    '''
-
-    for x in loader(fname):
         try:
             if use_ctx:
                 # For relation extraction, skip facts that don't have context sentence
@@ -307,27 +282,7 @@ def load_trigger_dataset(fname, templatizer, use_ctx, limit=None):
                 x['context'] = context
                 model_inputs, label_id = templatizer(x)
             else:
-
-                input_text = x['text']  # Use 'text' column for input
-                labels = [int(x[f'Label{i}']) for i in range(1, 6)]  # Read Label1 to Label5
-
-                # model_inputs, label_id = templatizer(x)
-
-                # Create model inputs using templatizer
-                model_inputs, label_id = templatizer({
-                    'input_text': input_text,
-                    'Label1': labels[0],
-                    'Label2': labels[1],
-                    'Label3': labels[2],
-                    'Label4': labels[3],
-                    'Label5': labels[4],
-                })
-
-
-
-
-
-
+                model_inputs, label_id = templatizer(x)
         except ValueError as e:
             logger.warning('Encountered error "%s" when processing "%s".  Skipping.', e, x)
             continue
@@ -337,7 +292,6 @@ def load_trigger_dataset(fname, templatizer, use_ctx, limit=None):
         return random.sample(instances, limit)
     else:
         return instances
-        '''
 
 
 def load_augmented_trigger_dataset(fname, templatizer, limit=None):
