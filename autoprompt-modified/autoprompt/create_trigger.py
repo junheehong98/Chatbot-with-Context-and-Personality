@@ -577,6 +577,7 @@ def accumulate_gradients(model, predictor, train_loader, trigger_ids, embedding_
         # 손실 계산
         # loss = get_loss(predict_logits, labels)
         loss = get_loss(predict_logits, labels, args.num_labels)
+        
 
         #
 
@@ -589,8 +590,7 @@ def accumulate_gradients(model, predictor, train_loader, trigger_ids, embedding_
 
         # 그라디언트 저장
         grad = embedding_gradient.get()
-        logger.debug(f"Grad shape before selection: {grad.size()}")
-        bsz, seq_len, emb_dim = grad.size()
+        logger.debug(f"Grad shape before selection: {grad.size()}")        
         selection_mask = model_inputs['trigger_mask'].unsqueeze(-1).expand_as(grad)
         # grad = grad.masked_select(selection_mask).view(bsz, -1, emb_dim)
         grad = grad.masked_select(selection_mask).view(-1, grad.size(-1))
@@ -617,6 +617,7 @@ def accumulate_gradients(model, predictor, train_loader, trigger_ids, embedding_
 
     # 평균 그라디언트를 반환
     averaged_grad = embedding_gradient._stored_gradient / args.accumulation_steps
+    logger.debug(f"Averaged gradient shape: {averaged_grad.size()}")
     return averaged_grad
 
 def preprocess_labels(row):
