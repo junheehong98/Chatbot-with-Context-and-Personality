@@ -581,8 +581,7 @@ def accumulate_gradients(model, predictor, train_loader, trigger_ids, embedding_
         #
 
         logger.debug(f"Loss at step {step}: {loss.item()}")
-        print(f"Loss at step {step}: {loss.item()}")
-
+        
         #
         
         model.zero_grad()  # 그라디언트 초기화
@@ -590,10 +589,13 @@ def accumulate_gradients(model, predictor, train_loader, trigger_ids, embedding_
 
         # 그라디언트 저장
         grad = embedding_gradient.get()
+        logger.debug(f"Grad shape before selection: {grad.size()}")
         bsz, seq_len, emb_dim = grad.size()
-        selection_mask = model_inputs['trigger_mask'].unsqueeze(-1).expand(bsz, seq_len, emb_dim)
-        grad = grad.masked_select(selection_mask).view(bsz, -1, emb_dim)
-        grad = grad.sum(dim=0)  # Sum over batch dimension
+        selection_mask = model_inputs['trigger_mask'].unsqueeze(-1).expand_as(grad)
+        # grad = grad.masked_select(selection_mask).view(bsz, -1, emb_dim)
+        grad = grad.masked_select(selection_mask).view(-1, grad.size(-1))
+        # grad = grad.sum(dim=0)  # Sum over batch dimension
+        logger.debug(f"Grad shape after selection: {grad.size()}")
         
         # # 그라디언트 저장
         # current_grad = embedding_gradient.get()
@@ -605,8 +607,11 @@ def accumulate_gradients(model, predictor, train_loader, trigger_ids, embedding_
         #     embedding_gradient._stored_gradient += current_grad
 
         if embedding_gradient._stored_gradient is None:
-            embedding_gradient._stored_gradient = grad
+            embedding_gradient._stored_gradient = grad.clone()
         else:
+            if embedding_gradient._stored_gradient.size() != grad.size():
+                raise ValueError(f"Stored gradient shape {embedding_gradient._stored_gradient.size()} "
+                                 f"does not match current gradient shape {grad.size()}.")
             embedding_gradient._stored_gradient += grad
 
 
