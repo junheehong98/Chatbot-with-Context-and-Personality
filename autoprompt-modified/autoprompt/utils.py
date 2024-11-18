@@ -267,8 +267,17 @@ def load_trigger_dataset(fname, templatizer, use_ctx, limit=None):
         # logger.info(f"Loaded row: {x}")  # 디버깅 추가
 
         try:
+            # input_text = x['text']
+            # labels = [int(x[f'Label{i}']) for i in range(1, 6)]
+            # 레이블을 문자열로 추출 후 유효성 검사
+            labels = [x[f'Label{i}'] for i in range(1, 6)]
+            if any(not isinstance(label, str) or not label.isdigit() for label in labels):
+                logger.warning(f"Invalid label values in row: {x}. Skipping.")
+                continue
+            # 레이블을 정수로 변환
+            labels = [int(label) for label in labels]
+            # 템플레이트를 사용해 모델 입력과 레이블 생성
             input_text = x['text']
-            labels = [int(x[f'Label{i}']) for i in range(1, 6)]
             model_inputs, label_id = templatizer({
                 'input_text': input_text,
                 'Label1': labels[0],

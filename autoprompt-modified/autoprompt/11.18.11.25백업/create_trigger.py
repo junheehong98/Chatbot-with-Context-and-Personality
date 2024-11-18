@@ -6,7 +6,6 @@ from pathlib import Path
 import random
 import itertools
 
-
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -44,8 +43,8 @@ class PredictWrapper:
     experiments.
     """
     def __init__(self, model, num_labels):
-        self.num_labels = num_labels  # num_labels 속성 추가
-        self._model = model      
+        self._model = model
+        self.num_labels = num_labels
        
 
     def __call__(self, model_inputs, trigger_ids):
@@ -54,65 +53,17 @@ class PredictWrapper:
         trigger_mask = model_inputs.pop('trigger_mask')
         # predict_mask = model_inputs.pop('predict_mask')
         model_inputs.pop('predict_mask', None)
-
-
         model_inputs = replace_trigger_tokens(model_inputs, trigger_ids, trigger_mask)
         
         logits, *_ = self._model(**model_inputs)
-        logger.debug(f"Logits shape: {logits.size()}")
-        
         
         # predict_logits = logits.masked_select(predict_mask.unsqueeze(-1)).view(logits.size(0), self.num_labels, -1)
         # predict_logits = logits  # 모델의 출력을 그대로 사용
         
         # logits을 (batch_size, num_labels, num_classes)로 변환
-        # predict_logits = logits.view(logits.size(0), self.num_labels, 2)
-
-        # # 출력 크기 동적 변환
-        # if logits.size(-1) % self.num_labels == 0:
-        #     num_classes = logits.size(-1) // self.num_labels
-        #     logits = logits.view(logits.size(0), self.num_labels, num_classes)
-        # else:
-        #     raise ValueError(f"Unexpected logits shape: {logits.size()}")
-        # Check if logits match expected shape
+        predict_logits = logits.view(logits.size(0), self.num_labels, 2)
         
-        '''
-        # 예상 로짓 크기 확인
-        if logits.size(-1) % self.num_labels != 0:
-            raise ValueError(
-                f"Unexpected logits shape: {logits.size()}, "
-                f"expected last dimension to be divisible by num_labels={self.num_labels}."
-            )
-
-        num_classes = logits.size(-1) // self.num_labels
-        logits = logits.view(logits.size(0), self.num_labels, num_classes)
-        '''
-        return logits
-
-
-
-        # # Reshape logits if necessary
-        # if len(logits.size()) == 3:  # (batch_size, num_labels, num_classes)
-        #     return logits
-        # elif len(logits.size()) == 2:  # Handle unexpected (batch_size, num_classes)
-        #     logits = logits.view(logits.size(0), 5, 2)  # (batch_size, num_labels, num_classes)
-        #     logger.debug(f"Logits reshaped to: {logits.size()}")
-        #     return logits
-        # else:
-        #     raise ValueError(f"Unexpected logits shape: {logits.size()}")
-
-
-        # if len(logits.size()) != 3:
-        #     raise ValueError(f"Expected logits to have 3 dimensions [batch_size, num_labels, num_classes], but got {logits.size()}")
-
-        
-
-
-        # predict_logits = logits.view(logits.size(0), 5, 2)  # [batch_size, num_labels, num_classes]
-        # logger.debug(f"Logits shape after reshape: {predict_logits.size()}")
-        # print(f"Logits shape after reshape: {predict_logits.size()}")
-        # # predict_logits = logits.view(logits.size(0), -1)
-        # return predict_logits
+        return predict_logits
 
 
 class AccuracyFn:
@@ -193,15 +144,6 @@ def get_embeddings(model, config):
     return embeddings
 
 
-def evaluation_fn(predict_logits, gold_labels):
-    # preds = (torch.sigmoid(predict_logits) >= 0.5).float()
-
-    preds = torch.argmax(predict_logits, dim=1)
-    correct = (preds == gold_labels.float()).float()
-    accuracy = correct.mean()
-    return accuracy
-
-
 def hotflip_attack(averaged_grad,
                    embedding_matrix,
                    increase_loss=False,
@@ -209,19 +151,12 @@ def hotflip_attack(averaged_grad,
                    filter=None):
     """Returns the top candidate replacements."""
     with torch.no_grad():
-        # gradient_dot_embedding_matrix = torch.matmul(
-        #     # embedding_matrix,
-        #     # averaged_grad
-            
-        #     averaged_grad.view(-1, embedding_matrix.size(1)), embedding_matrix.t()
-        # )
-
         gradient_dot_embedding_matrix = torch.matmul(
-            embedding_matrix,
-            averaged_grad.view(-1, 1)
-        ).squeeze(1)
-
-
+            # embedding_matrix,
+            # averaged_grad
+            
+            averaged_grad.view(-1, embedding_matrix.size(1)), embedding_matrix.t()
+        )
         if filter is not None:
             gradient_dot_embedding_matrix -= filter
         if not increase_loss:
@@ -294,23 +229,7 @@ def apply_trigger_to_system_prompt(model_inputs, trigger_tokens, tokenizer):
 
 
 def get_loss(predict_logits, label_ids, num_labels):
-    logger.debug(f"Predict Logits Shape: {predict_logits.size()}, Values: {predict_logits[:2]}")
-    logger.debug(f"Label IDs Shape: {label_ids.size()}, Values: {label_ids[:2]}")
-
-
-    # if len(predict_logits.size()) == 2:  # (batch_size, num_classes)
-    #     batch_size, num_classes = predict_logits.size()
-    #     if num_classes % num_labels != 0:
-    #         raise ValueError(f"[ERROR] Logits classes {num_classes} not divisible by num_labels {num_labels}.")
-    #     num_classes_per_label = num_classes // num_labels
-    #     predict_logits = predict_logits.view(batch_size, num_labels, num_classes_per_label)
-    # print(f"[DEBUG] Reshaped logits: {predict_logits.size()}")
-    # logger.debug(f"Predict logits shape: {predict_logits.size()}")
-
-
-
-
-
+    
     '''
     predict_logp = F.log_softmax(predict_logits, dim=-1)
     target_logp = predict_logp.gather(-1, label_ids)
@@ -320,70 +239,7 @@ def get_loss(predict_logits, label_ids, num_labels):
     # loss = sum(F.cross_entropy(predict_logits[:, i, :], label_ids[:, i]) for i in range(num_labels)) / num_labels
     
     # predict_logits와 label_ids의 차원에 맞게 손실 계산
-    # loss = F.cross_entropy(predict_logits.view(-1, predict_logits.size(-1)), label_ids.view(-1))
-
-
-
-
-    # if predict_logits.shape != label_ids.shape:
-    #     raise ValueError(f"Mismatch between logits shape {predict_logits.shape} and label shape {label_ids.shape}")
-                  
-
-    # # predict_logits = predict_logits.squeeze(-1)
-    # loss_fn = torch.nn.BCEWithLogitsLoss()
-    # loss = loss_fn(predict_logits, label_ids.float())
-
-
-
-
-
-
-    # # logits과 labels의 차원을 맞춤
-    # batch_size, num_labels, num_classes = predict_logits.size()
-    # logits_flat = predict_logits.view(batch_size * num_labels, num_classes)
-    # labels_flat = label_ids.view(batch_size * num_labels)
-
-    # loss_fn = torch.nn.CrossEntropyLoss()
-    # loss = loss_fn(logits_flat, labels_flat)
-
-
-    '''
-    if len(predict_logits.size()) == 3:  # (batch_size, num_labels, num_classes)
-        batch_size, num_labels, num_classes = predict_logits.size()
-        logits_flat = predict_logits.view(batch_size * num_labels, num_classes)
-        labels_flat = label_ids.view(batch_size * num_labels)
-    elif len(predict_logits.size()) == 2:  # (batch_size, num_classes)
-        logits_flat = predict_logits
-        labels_flat = label_ids
-    else:
-        raise ValueError(f"Unexpected logits shape: {predict_logits.size()}")
-    # Logits와 Labels 크기 불일치 확인
-    if logits_flat.size(0) != labels_flat.size(0):
-        raise ValueError(
-            f"Mismatch between logits_flat batch size ({logits_flat.size(0)}) and labels_flat ({labels_flat.size(0)})."
-        ) '''
-    
-
-    '''
-    # Check if logits and labels match the expected dimensions
-    if predict_logits.size(1) != num_labels or predict_logits.size(2) != 2:
-        logger.error(f"Mismatch: Logits shape {predict_logits.size()}, Labels shape {label_ids.size()}")
-        raise ValueError(f"Logits shape {predict_logits.size()} does not match expected dimensions (batch_size, {num_labels}, 2).")
-
-    # Reshape for loss calculation
-    logits_flat = predict_logits.view(-1, 2)
-    labels_flat = label_ids.view(-1)
-    '''
-
-    # Reshape for loss calculation
-    batch_size, num_labels, num_classes = predict_logits.size()
-    logits_flat = predict_logits.view(batch_size * num_labels, num_classes)
-    labels_flat = label_ids.view(batch_size * num_labels)
-
-
-    
-    loss_fn = torch.nn.CrossEntropyLoss()
-    loss = loss_fn(logits_flat, labels_flat)
+    loss = F.cross_entropy(predict_logits.view(-1, predict_logits.size(-1)), label_ids.view(-1))
 
     return loss
     # return -target_logp
@@ -442,24 +298,6 @@ def load_datasets(args, templatizer, collator):
         train_dataset = utils.load_augmented_trigger_dataset(args.train, templatizer, limit=args.limit)
     else:
         train_dataset = utils.load_trigger_dataset(args.train, templatizer, use_ctx=args.use_ctx, limit=args.limit)
-
-
-
-
-    # 데이터셋 검증 (샘플 구조 확인)
-    for i, sample in enumerate(train_dataset):
-        if isinstance(sample, tuple):  # Tuple structure: (input_ids, labels)
-            input_ids, labels = sample
-        elif isinstance(sample, dict):  # Dictionary structure
-            labels = sample['labels']
-        else:
-            raise ValueError(f"Unexpected sample structure: {type(sample)}")
-
-        if len(labels) != args.num_labels:
-            logger.warning(f"Sample {i} has invalid label size: {len(labels)}")
-            continue
-
-
     train_loader = DataLoader(train_dataset, batch_size=args.bsz, shuffle=True, collate_fn=collator)
 
     if args.perturbed:
@@ -550,89 +388,36 @@ def accumulate_gradients(model, predictor, train_loader, trigger_ids, embedding_
         
         # Trigger 토큰을 교체하고 예측 수행
         predict_logits = predictor(model_inputs, trigger_ids)
-        # `predict_logits`이 (batch_size, num_labels) 형태인지 확인
-
-        #
-
-        logger.debug(f"Predict logits shape: {predict_logits.size()}, Labels shape: {labels.size()}")
-        print(f"Step {step}: Predict logits shape: {predict_logits.size()}, Labels shape: {labels.size()}")
-
-        #
-
-
-
         # predict_logits = predict_logits.view(-1, args.num_labels, 3)  # 로짓의 형태 조정
 
         # 손실 계산 및 역전파
         # 각 레이블별로 손실을 계산하고 평균
         # loss = sum(F.cross_entropy(predict_logits[:, i, :], labels[:, i]) for i in range(args.num_labels)) / args.num_labels
         # 손실 계산 및 역전파
-        # loss = 0
-        # for i in range(args.num_labels):
-        #     # print(f"predict_logits[:, {i}, :].shape: {predict_logits[:, i, :].shape}")
-        #     # print(f"labels[:, {i}].shape: {labels[:, i].shape}")
-        #     loss += F.cross_entropy(predict_logits[:, i, :], labels[:, i])
-        # loss = loss / args.num_labels
-
-        # 손실 계산
-        # loss = get_loss(predict_logits, labels)
-        loss = get_loss(predict_logits, labels, args.num_labels)
-
-        #
-
-        logger.debug(f"Loss at step {step}: {loss.item()}")
-        print(f"Loss at step {step}: {loss.item()}")
-
-        #
+        loss = 0
+        for i in range(args.num_labels):
+            # print(f"predict_logits[:, {i}, :].shape: {predict_logits[:, i, :].shape}")
+            # print(f"labels[:, {i}].shape: {labels[:, i].shape}")
+            loss += F.cross_entropy(predict_logits[:, i, :], labels[:, i])
+        loss = loss / args.num_labels
+        
         
         model.zero_grad()  # 그라디언트 초기화
         loss.backward()
+        
+        # 그라디언트 저장
+        current_grad = embedding_gradient.get()
 
         # 그라디언트 저장
-        grad = embedding_gradient.get()
-        bsz, seq_len, emb_dim = grad.size()
-        selection_mask = model_inputs['trigger_mask'].unsqueeze(-1).expand(bsz, seq_len, emb_dim)
-        grad = grad.masked_select(selection_mask).view(bsz, -1, emb_dim)
-        grad = grad.sum(dim=0)  # Sum over batch dimension
-        
-        # # 그라디언트 저장
-        # current_grad = embedding_gradient.get()
-
-        # # 그라디언트 저장
-        # if embedding_gradient._stored_gradient is None:
-        #     embedding_gradient._stored_gradient = current_grad.clone()
-        # else:
-        #     embedding_gradient._stored_gradient += current_grad
-
         if embedding_gradient._stored_gradient is None:
-            embedding_gradient._stored_gradient = grad
+            embedding_gradient._stored_gradient = current_grad.clone()
         else:
-            embedding_gradient._stored_gradient += grad
+            embedding_gradient._stored_gradient += current_grad
 
 
     # 평균 그라디언트를 반환
     averaged_grad = embedding_gradient._stored_gradient / args.accumulation_steps
     return averaged_grad
-
-def preprocess_labels(row):
-    '''
-    # Check if all labels are valid integers
-    for label in ['Label1', 'Label2', 'Label3', 'Label4', 'Label5']:
-        if not row[label].isdigit():
-            return None  # Mark the row for exclusion
-    # Convert labels to integers
-    row = {label: int(row[label]) for label in ['Label1', 'Label2', 'Label3', 'Label4', 'Label5']}
-    return row
-    '''
-    try:
-        for label in ['Label1', 'Label2', 'Label3', 'Label4', 'Label5']:
-            row[label] = int(row[label])
-        return row
-    except ValueError:
-        return None  # Skip rows with invalid labels
-
-
-
 
 
 def setup_evaluation_function(tokenizer, args, label_map, device):
@@ -674,51 +459,19 @@ def print_lama_template(best_trigger_ids, tokenizer, templatizer, args):
     print(json.dumps(out))
 
 def evaluate_triggers(predictor, dev_loader, evaluation_fn, trigger_ids, device):
-    # total_correct = 0
-    # total_count = 0
-    total_accuracy = 0
-    total_batches = 0
-
-
+    total_correct = 0
+    total_count = 0
     for model_inputs, labels in tqdm(dev_loader):
         model_inputs = {k: v.to(device) for k, v in model_inputs.items()}
         labels = labels.to(device)
         with torch.no_grad():
-            # predict_logits = predictor(model_inputs, trigger_ids)
-            # # predict_logits = predict_logits.view(-1, args.num_labels, 3)
-            # preds = torch.argmax(predict_logits, dim=-1)
-            # correct = (preds == labels).sum().item()
-            # total_correct += correct
-            # total_count += labels.numel()
             predict_logits = predictor(model_inputs, trigger_ids)
-
-            logger.debug(f"Predict logits shape: {predict_logits.size()}, Labels shape: {labels.size()}")
-
-
-
-            # logits 크기 확인
-            if len(predict_logits.size()) != 3:
-                raise ValueError(f"Expected logits to have 3 dimensions, got {predict_logits.size()}")
-
-            # predict_logits이 (batch_size, num_labels)인지 확인 필요
-
-            # if predict_logits.shape != labels.shape:
-            #     raise ValueError(
-            #         f"Shape mismatch: logits {predict_logits.shape}, labels {labels.shape}"
-            #     )
-
-
-            # accuracy = evaluation_fn(predict_logits, labels)
-
-            # accuracy = evaluation_fn(logits_flat, labels_flat)
-            # Directly calculate accuracy
-            accuracy = evaluation_fn(predict_logits, labels)
-
-        total_accuracy += accuracy.item()
-        total_batches += 1
-
-    # dev_metric = total_correct / (total_count + 1e-13)
-    dev_metric = total_accuracy / total_batches
+            # predict_logits = predict_logits.view(-1, args.num_labels, 3)
+            preds = torch.argmax(predict_logits, dim=-1)
+            correct = (preds == labels).sum().item()
+            total_correct += correct
+            total_count += labels.numel()
+    dev_metric = total_correct / (total_count + 1e-13)
     logger.info(f'Dev metric: {dev_metric}')
     return dev_metric
 
@@ -726,7 +479,7 @@ def evaluate_candidates(model, predictor, train_loader, averaged_grad, trigger_i
     """
     Evaluate the candidate tokens to find the best replacement for trigger optimization.
     """
-    logger.debug(f"Evaluating candidates for token position {token_to_flip}")
+    
     # 추가: evaluation_fn이 정상적으로 전달되었는지 로그 확인
     logger.debug(f'evaluation_fn is: {evaluation_fn}')
     if evaluation_fn is None:
@@ -762,38 +515,18 @@ def evaluate_candidates(model, predictor, train_loader, averaged_grad, trigger_i
         
         with torch.no_grad():
             predict_logits = predictor(model_inputs, trigger_ids)
-
-            if predict_logits.size(0) != labels.size(0):
-                raise ValueError(
-                    f"Mismatch between logits batch size ({predict_logits.size(0)}) and labels ({labels.size(0)})."
-                )
             eval_metric = evaluation_fn(predict_logits, labels)
 
-        logger.debug(f"Original trigger eval metric: {eval_metric.item()}")
-
-        # current_score += eval_metric.sum()
-        # denom += labels.size(0)
-
-        # for i, candidate in enumerate(candidates):
-        #     temp_trigger = trigger_ids.clone()
-        #     temp_trigger[:, token_to_flip] = candidate[0]
-        #     with torch.no_grad():
-        #         predict_logits = predictor(model_inputs, temp_trigger)
-        #         eval_metric = evaluation_fn(predict_logits, labels)
-        #     candidate_scores[i] += eval_metric.sum()
+        current_score += eval_metric.sum()
+        denom += labels.size(0)
 
         for i, candidate in enumerate(candidates):
-            # Replace token in trigger_ids with the candidate
             temp_trigger = trigger_ids.clone()
-            temp_trigger[:, token_to_flip] = candidate
+            temp_trigger[:, token_to_flip] = candidate[0]
             with torch.no_grad():
                 predict_logits = predictor(model_inputs, temp_trigger)
-                candidate_eval_metric = evaluation_fn(predict_logits, labels)
-
-            # Accumulate scores for each candidate
-            candidate_scores[i] += candidate_eval_metric.item()
-
-
+                eval_metric = evaluation_fn(predict_logits, labels)
+            candidate_scores[i] += eval_metric.sum()
 
     best_candidate_score = candidate_scores.max()
     best_candidate_idx = candidate_scores.argmax()
