@@ -53,7 +53,7 @@ class PredictWrapper:
         model_inputs = model_inputs.copy()
         trigger_mask = model_inputs.pop('trigger_mask')
         # predict_mask = model_inputs.pop('predict_mask')
-        model_inputs.pop('predict_mask', None)
+        predict_mask = model_inputs.pop('predict_mask', None)
 
 
         model_inputs = replace_trigger_tokens(model_inputs, trigger_ids, trigger_mask)
@@ -87,6 +87,11 @@ class PredictWrapper:
         num_classes = logits.size(-1) // self.num_labels
         logits = logits.view(logits.size(0), self.num_labels, num_classes)
         '''
+        if predict_mask is not None:
+            predict_logits = logits.masked_select(predict_mask.unsqueeze(-1)).view(logits.size(0), -1)
+        else:
+            predict_logits = logits
+        logits = predict_logits
         return logits
 
 
@@ -376,7 +381,11 @@ def get_loss(predict_logits, label_ids, num_labels):
     '''
 
     # Reshape for loss calculation
-    batch_size, num_labels, num_classes = predict_logits.size()
+    batch_size, num_labels_pred, num_classes = predict_logits.size()
+    if num_labels_pred != num_labels:
+        raise ValueError(
+            f"Mismatch between logits num_labels ({num_labels_pred}) and expected num_labels ({num_labels})."
+        )
     logits_flat = predict_logits.view(batch_size * num_labels, num_classes)
     labels_flat = label_ids.view(batch_size * num_labels)
 
@@ -590,7 +599,12 @@ def accumulate_gradients(model, predictor, train_loader, trigger_ids, embedding_
         logger.debug(f"Step {step}: Trigger mask shape: {model_inputs['trigger_mask'].size()}")
        
         # Trigger mask 크기 확인 및 확장
-        trigger_mask = model_inputs['trigger_mask'].unsqueeze(-1).expand_as(grad)
+        trigger_mask = model_inputs['trigger_mask'].unsqueeze(-1)
+        if trigger_mask.size() != grad.size():
+            logger.error(f"Mismatch between trigger_mask size {trigger_mask.size()} and grad size {grad.size()}.")
+            trigger_mask = trigger_mask.expand_as(grad)  # 다시 크기를 확장
+            if trigger_mask.size() != grad.size():
+                raise ValueError(f"Expanded trigger_mask size {trigger_mask.size()} still does not match grad size {grad.size()}.")
         logger.debug(f"Step {step}: Trigger mask shape: {trigger_mask.size()}")
 
 
@@ -630,8 +644,7 @@ def accumulate_gradients(model, predictor, train_loader, trigger_ids, embedding_
         else:   
             if embedding_gradient._stored_gradient.size() != grad.size():
                 raise ValueError(
-                    f"Stored gradient size mismatch: "
-                    f"{embedding_gradient._stored_gradient.size()} vs {grad.size()}."
+                    f"Stored gradient size mismatch: {embedding_gradient._stored_gradient.size()} vs {grad.size()}."
                 )         
             embedding_gradient._stored_gradient += grad
         
@@ -906,6 +919,9 @@ def run_model(args):
         expected_trigger_tokens = templatizer.num_trigger_tokens
         assert initial_trigger_length == expected_trigger_tokens, \
             f"Initial trigger length ({initial_trigger_length}) does not match number of [T] tokens ({expected_trigger_tokens})."
+        
+
+        trigger_ids = tokenizer.convert_tokens_to_ids(args.initial_trigger)
 
 
     
