@@ -53,14 +53,13 @@ class PredictWrapper:
         model_inputs = model_inputs.copy()
         trigger_mask = model_inputs.pop('trigger_mask')
         # predict_mask = model_inputs.pop('predict_mask')
-        predict_mask = model_inputs.pop('predict_mask', None)
+        predict_mask = model_inputs.pop('predict_mask')
 
 
         model_inputs = replace_trigger_tokens(model_inputs, trigger_ids, trigger_mask)
         
         logits, *_ = self._model(**model_inputs)
-        logger.debug(f"Logits shape: {logits.size()}")
-        
+        logger.debug(f"Logits shape: {logits.size()}, Predict mask shape: {predict_mask.size()}")
         
         # predict_logits = logits.masked_select(predict_mask.unsqueeze(-1)).view(logits.size(0), self.num_labels, -1)
         # predict_logits = logits  # 모델의 출력을 그대로 사용
@@ -87,20 +86,29 @@ class PredictWrapper:
         num_classes = logits.size(-1) // self.num_labels
         logits = logits.view(logits.size(0), self.num_labels, num_classes)
         '''
-        if predict_mask is not None:
-            if predict_mask.dim() < logits.dim():
-                predict_mask = predict_mask.unsqueeze(-1).expand_as(logits)
-            try:
-                predict_logits = logits.masked_select(predict_mask).view(logits.size(0), -1)
-            except RuntimeError as e:
-                logger.error(f"Masking failed. Predict mask shape: {predict_mask.size()}, Logits shape: {logits.size()}")
-                raise e
+        # if predict_mask is not None:
+        #     if predict_mask.dim() < logits.dim():
+        #         predict_mask = predict_mask.unsqueeze(-1).expand_as(logits)
+            
+        #     try:
+        #         # Predict mask로 logits 선택
+        #         predict_logits = logits.masked_select(predict_mask).view(logits.size(0), -1)
+        #     except RuntimeError as e:
+        #         logger.error(f"Masking failed. Predict mask shape: {predict_mask.size()}, Logits shape: {logits.size()}")
+        #         raise e
     
             # predict_logits = logits.masked_select(predict_mask.unsqueeze(-1)).view(logits.size(0), -1)
-        else:
-            predict_logits = logits
-        logits = predict_logits
-        return logits
+        # else:
+        #     predict_logits = logits
+
+        if predict_mask.size(1) != logits.size(1):
+            logger.warning(f"Resizing predict_mask from {predict_mask.size()} to {logits.size()}")
+            predict_mask = predict_mask.expand(logits.size(0), logits.size(1)).to(logits.device)
+
+        predict_logits = logits.masked_select(predict_mask.unsqueeze(-1)).view(logits.size(0), -1)
+
+        
+        return predict_logits
 
 
 
@@ -752,6 +760,7 @@ def evaluate_triggers(predictor, dev_loader, evaluation_fn, trigger_ids, device)
 
             # logits 크기 확인
             if len(predict_logits.size()) != 3:
+                logger.error(f"Expected logits to have 3 dimensions, got {predict_logits.size()}")
                 raise ValueError(f"Expected logits to have 3 dimensions, got {predict_logits.size()}")
 
             # predict_logits이 (batch_size, num_labels)인지 확인 필요
@@ -902,6 +911,12 @@ def run_model(args):
         tokenize_labels=args.tokenize_labels,
         add_special_tokens=False,
         use_ctx=args.use_ctx
+    )
+
+    # **추가: 템플릿과 args.num_labels 일치 여부 확인**
+    assert templatizer.num_trigger_tokens == args.num_labels, (
+        f"Mismatch: Template has {templatizer.num_trigger_tokens} trigger tokens, "
+        f"but num_labels is {args.num_labels}. Please ensure they match."
     )
 
     # 데이터 로딩
