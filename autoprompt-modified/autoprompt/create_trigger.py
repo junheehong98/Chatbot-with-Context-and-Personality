@@ -554,8 +554,7 @@ def accumulate_gradients(model, predictor, train_loader, trigger_ids, embedding_
 
         #
 
-        logger.debug(f"Predict logits shape: {predict_logits.size()}, Labels shape: {labels.size()}")
-        print(f"Step {step}: Predict logits shape: {predict_logits.size()}, Labels shape: {labels.size()}")
+        logger.debug(f"Step {step}: Predict logits shape: {predict_logits.size()}, Labels shape: {labels.size()}")
 
         #
 
@@ -576,27 +575,40 @@ def accumulate_gradients(model, predictor, train_loader, trigger_ids, embedding_
 
         # 손실 계산
         # loss = get_loss(predict_logits, labels)
-        loss = get_loss(predict_logits, labels, args.num_labels)
+        loss = get_loss(predict_logits, labels, args.num_labels)   
+        logger.debug(f"Step {step}: Loss: {loss.item()}")
         
-
-        #
-
-        logger.debug(f"Loss at step {step}: {loss.item()}")
-        
-        #
         
         model.zero_grad()  # 그라디언트 초기화
         loss.backward()
 
         # 그라디언트 저장
         grad = embedding_gradient.get()
-        logger.debug(f"Grad shape before selection: {grad.size()}")        
-        selection_mask = model_inputs['trigger_mask'].unsqueeze(-1).expand_as(grad)
-        # grad = grad.masked_select(selection_mask).view(bsz, -1, emb_dim)
-        grad = grad.masked_select(selection_mask).view(-1, grad.size(-1))
-        # grad = grad.sum(dim=0)  # Sum over batch dimension
-        logger.debug(f"Grad shape after selection: {grad.size()}")
+        if grad is None:
+            raise ValueError("Gradient not found. Ensure the backward hook is properly registered.")
+        logger.debug(f"Step {step}: Grad shape before masking: {grad.size()}")
+        logger.debug(f"Step {step}: Trigger mask shape: {model_inputs['trigger_mask'].size()}")
+       
+        # Trigger mask 크기 확인 및 확장
+        trigger_mask = model_inputs['trigger_mask'].unsqueeze(-1).expand_as(grad)
+        logger.debug(f"Step {step}: Trigger mask shape: {trigger_mask.size()}")
+
+
+        # Trigger mask 크기와 그라디언트 크기 검증
+        if trigger_mask.size() != grad.size():
+            raise ValueError(
+                f"Trigger mask size {trigger_mask.size()} does not match grad size {grad.size()}."
+                "Check the model input and trigger template alignment."
+            )
         
+
+
+        # grad = grad.masked_select(selection_mask).view(bsz, -1, emb_dim)
+        grad = grad.masked_select(trigger_mask).view(-1, grad.size(-1))
+        # grad = grad.sum(dim=0)  # Sum over batch dimension
+        logger.debug(f"Step {step}: Grad shape after masking: {grad.size()}")
+        
+
         # # 그라디언트 저장
         # current_grad = embedding_gradient.get()
 
@@ -606,16 +618,28 @@ def accumulate_gradients(model, predictor, train_loader, trigger_ids, embedding_
         # else:
         #     embedding_gradient._stored_gradient += current_grad
 
+        # 기존 저장된 그라디언트와 크기 검증
+        if embedding_gradient._stored_gradient is not None:
+            if embedding_gradient._stored_gradient.size() != grad.size():
+                raise ValueError(
+                    f"Stored gradient shape {embedding_gradient._stored_gradient.size()} "
+                    f"does not match current gradient shape {grad.size()}."
+                )
+
         if embedding_gradient._stored_gradient is None:
             embedding_gradient._stored_gradient = grad.clone()
-        else:
-            if embedding_gradient._stored_gradient.size() != grad.size():
-                raise ValueError(f"Stored gradient shape {embedding_gradient._stored_gradient.size()} "
-                                 f"does not match current gradient shape {grad.size()}.")
+            logger.debug("Stored gradient is currently None.")
+        else:            
             embedding_gradient._stored_gradient += grad
+        logger.debug(f"Step {step}: Stored gradient updated.")
 
 
     # 평균 그라디언트를 반환
+
+    if embedding_gradient._stored_gradient is None:
+        raise ValueError("No gradient stored after accumulation. Check your training loop.")
+    
+    
     averaged_grad = embedding_gradient._stored_gradient / args.accumulation_steps
     logger.debug(f"Averaged gradient shape: {averaged_grad.size()}")
     return averaged_grad
