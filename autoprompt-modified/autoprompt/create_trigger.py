@@ -59,8 +59,9 @@ class PredictWrapper:
         model_inputs = replace_trigger_tokens(model_inputs, trigger_ids, trigger_mask)
         
         logits, *_ = self._model(**model_inputs)
-        logger.debug(f"Logits shape: {logits.size()}, Predict mask shape: {predict_mask.size()}")
-        
+        logger.debug(f"Raw logits shape: {logits.size()}")
+        logger.debug(f"Predict mask shape before processing: {predict_mask.size()}")
+
         # predict_logits = logits.masked_select(predict_mask.unsqueeze(-1)).view(logits.size(0), self.num_labels, -1)
         # predict_logits = logits  # 모델의 출력을 그대로 사용
         
@@ -104,11 +105,22 @@ class PredictWrapper:
         # Reshape logits to [batch_size, num_labels, num_classes]
         batch_size = logits.size(0)
         logger.debug(f"Logits shape before: {logits.size()}")
-        logits = logits.view(batch_size, self.num_labels, 2)  # num_classes=2
+        logits = logits.view(batch_size, self.num_labels, -1)  # Infer num_classes dynamically
         logger.debug(f"Logits shape after: {logits.size()}")
+
+        sequence_length = predict_mask.size(1)
+        num_classes = logits.size(2)
+        expected_length = self.num_labels * num_classes
+
+        if sequence_length != expected_length:
+            raise ValueError(
+                f"Predict mask length ({sequence_length}) does not match expected length ({expected_length})."
+            )
+        
+
+
         # Reshape predict_mask to match logits dimensions
-        predict_mask = predict_mask.unsqueeze(-1).expand_as(logits)  # [batch_size, num_labels, num_classes]
-        logger.debug(f"Logits shape: {logits.size()}")
+        predict_mask = predict_mask.view(batch_size, self.num_labels, num_classes)
         logger.debug(f"Predict mask shape: {predict_mask.size()}")
         # Apply predict_mask to logits
         predict_logits = logits.masked_select(predict_mask).view(batch_size, -1)  # 최종 선택된 logits
