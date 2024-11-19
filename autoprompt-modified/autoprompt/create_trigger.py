@@ -596,10 +596,15 @@ def accumulate_gradients(model, predictor, train_loader, trigger_ids, embedding_
 
         # Trigger mask 크기와 그라디언트 크기 검증
         if trigger_mask.size() != grad.size():
-            raise ValueError(
-                f"Trigger mask size {trigger_mask.size()} does not match grad size {grad.size()}."
-                "Check the model input and trigger template alignment."
+            logger.error(
+                f"[Error] Trigger mask size {trigger_mask.size()} does not match grad size {grad.size()}. "
+                "This might cause gradient alignment issues. Please verify the input template and masking logic."
             )
+            raise ValueError(
+                f"Mismatch between trigger mask and gradient dimensions: "
+                f"Trigger mask: {trigger_mask.size()}, Gradient: {grad.size()}"
+            )
+                    
         
 
 
@@ -618,20 +623,18 @@ def accumulate_gradients(model, predictor, train_loader, trigger_ids, embedding_
         # else:
         #     embedding_gradient._stored_gradient += current_grad
 
-        # 기존 저장된 그라디언트와 크기 검증
-        if embedding_gradient._stored_gradient is not None:
-            if embedding_gradient._stored_gradient.size() != grad.size():
-                raise ValueError(
-                    f"Stored gradient shape {embedding_gradient._stored_gradient.size()} "
-                    f"does not match current gradient shape {grad.size()}."
-                )
+        
 
         if embedding_gradient._stored_gradient is None:
-            embedding_gradient._stored_gradient = grad.clone()
-            logger.debug("Stored gradient is currently None.")
-        else:            
+            embedding_gradient._stored_gradient = grad.clone()            
+        else:   
+            if embedding_gradient._stored_gradient.size() != grad.size():
+                raise ValueError(
+                    f"Stored gradient size mismatch: "
+                    f"{embedding_gradient._stored_gradient.size()} vs {grad.size()}."
+                )         
             embedding_gradient._stored_gradient += grad
-        logger.debug(f"Step {step}: Stored gradient updated.")
+        
 
 
     # 평균 그라디언트를 반환
@@ -639,7 +642,7 @@ def accumulate_gradients(model, predictor, train_loader, trigger_ids, embedding_
     if embedding_gradient._stored_gradient is None:
         raise ValueError("No gradient stored after accumulation. Check your training loop.")
     
-    
+
     averaged_grad = embedding_gradient._stored_gradient / args.accumulation_steps
     logger.debug(f"Averaged gradient shape: {averaged_grad.size()}")
     return averaged_grad
