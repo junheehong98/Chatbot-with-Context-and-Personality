@@ -88,7 +88,15 @@ class PredictWrapper:
         logits = logits.view(logits.size(0), self.num_labels, num_classes)
         '''
         if predict_mask is not None:
-            predict_logits = logits.masked_select(predict_mask.unsqueeze(-1)).view(logits.size(0), -1)
+            if predict_mask.dim() < logits.dim():
+                predict_mask = predict_mask.unsqueeze(-1).expand_as(logits)
+            try:
+                predict_logits = logits.masked_select(predict_mask).view(logits.size(0), -1)
+            except RuntimeError as e:
+                logger.error(f"Masking failed. Predict mask shape: {predict_mask.size()}, Logits shape: {logits.size()}")
+                raise e
+    
+            # predict_logits = logits.masked_select(predict_mask.unsqueeze(-1)).view(logits.size(0), -1)
         else:
             predict_logits = logits
         logits = predict_logits
