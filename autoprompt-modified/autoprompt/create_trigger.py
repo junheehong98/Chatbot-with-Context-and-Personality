@@ -51,10 +51,8 @@ class PredictWrapper:
     def __call__(self, model_inputs, trigger_ids):
         # Copy dict so pop operations don't have unwanted side-effects
         model_inputs = model_inputs.copy()
-        trigger_mask = model_inputs.pop('trigger_mask')
-        # predict_mask = model_inputs.pop('predict_mask')
+        trigger_mask = model_inputs.pop('trigger_mask')        
         predict_mask = model_inputs.pop('predict_mask')
-
 
         model_inputs = replace_trigger_tokens(model_inputs, trigger_ids, trigger_mask)
         
@@ -104,27 +102,21 @@ class PredictWrapper:
 
         # Reshape logits to [batch_size, num_labels, num_classes]
         batch_size = logits.size(0)
+        num_classes = logits.size(-1) // self.num_labels
+
+
         logger.debug(f"Logits shape before: {logits.size()}")
-        logits = logits.view(batch_size, self.num_labels, -1)  # Infer num_classes dynamically
+        logits = logits.view(batch_size, self.num_labels, num_classes)  # Infer num_classes dynamically
         logger.debug(f"Logits shape after: {logits.size()}")
 
-        sequence_length = predict_mask.size(1)
-        num_classes = logits.size(2)
-        expected_length = self.num_labels * num_classes
-
-        if sequence_length != expected_length:
-            raise ValueError(
-                f"Predict mask length ({sequence_length}) does not match expected length ({expected_length})."
-            )
-        
-
-
-        # Reshape predict_mask to match logits dimensions
+        # Ensure predict_mask matches [batch_size, num_labels, num_classes]
         predict_mask = predict_mask.view(batch_size, self.num_labels, num_classes)
-        logger.debug(f"Predict mask shape: {predict_mask.size()}")
-        # Apply predict_mask to logits
-        predict_logits = logits.masked_select(predict_mask).view(batch_size, -1)  # 최종 선택된 logits
+        logger.debug(f"Reshaped predict_mask: {predict_mask.size()}")
 
+        # Apply predict_mask to logits
+        predict_logits = logits.masked_select(predict_mask).view(batch_size, -1)
+
+        logger.debug(f"Final predict_logits shape: {predict_logits.size()}")
         
         
         return predict_logits
