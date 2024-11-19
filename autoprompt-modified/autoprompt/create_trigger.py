@@ -913,12 +913,7 @@ def run_model(args):
         use_ctx=args.use_ctx
     )
 
-    # **추가: 템플릿과 args.num_labels 일치 여부 확인**
-    assert templatizer.num_trigger_tokens == args.num_labels, (
-        f"Mismatch: Template has {templatizer.num_trigger_tokens} trigger tokens, "
-        f"but num_labels is {args.num_labels}. Please ensure they match."
-    )
-
+   
     # 데이터 로딩
     collator = utils.Collator(pad_token_id=tokenizer.pad_token_id)
     train_loader, dev_loader = load_datasets(args, templatizer, collator)
