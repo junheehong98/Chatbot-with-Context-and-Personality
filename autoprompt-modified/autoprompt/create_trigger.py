@@ -101,12 +101,19 @@ class PredictWrapper:
         # else:
         #     predict_logits = logits
 
-        if predict_mask.size(1) != logits.size(1):
-            logger.warning(f"Resizing predict_mask from {predict_mask.size()} to {logits.size()}")
-            predict_mask = predict_mask.expand(logits.size(0), logits.size(1)).to(logits.device)
+        # Reshape logits to [batch_size, num_labels, num_classes]
+        batch_size = logits.size(0)
+        logger.debug(f"Logits shape before: {logits.size()}")
+        logits = logits.view(batch_size, self.num_labels, 2)  # num_classes=2
+        logger.debug(f"Logits shape after: {logits.size()}")
+        # Reshape predict_mask to match logits dimensions
+        predict_mask = predict_mask.unsqueeze(-1).expand_as(logits)  # [batch_size, num_labels, num_classes]
+        logger.debug(f"Logits shape: {logits.size()}")
+        logger.debug(f"Predict mask shape: {predict_mask.size()}")
+        # Apply predict_mask to logits
+        predict_logits = logits.masked_select(predict_mask).view(batch_size, -1)  # 최종 선택된 logits
 
-        predict_logits = logits.masked_select(predict_mask.unsqueeze(-1)).view(logits.size(0), -1)
-
+        
         
         return predict_logits
 
