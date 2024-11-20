@@ -45,6 +45,7 @@ class PredictWrapper:
     """
     def __init__(self, model, num_labels):
         self.num_labels = num_labels  # num_labels 속성 추가
+        self.num_classes = 2  # 클래스 수 = 2
         self._model = model      
        
 
@@ -57,8 +58,10 @@ class PredictWrapper:
         model_inputs = replace_trigger_tokens(model_inputs, trigger_ids, trigger_mask)
         
         logits, *_ = self._model(**model_inputs)
-        logger.debug(f"Raw logits shape: {logits.size()}")
-        logger.debug(f"Predict mask shape before processing: {predict_mask.size()}")
+        logger.debug(f" 1111 Input Raw logits shape: {logits.size()}")
+        logger.debug(f"  1111 Num labels: {self.num_labels}")  # num_labels 확인
+        logger.debug(f"  1111 Last dimension (logits.size(-1)): {logits.size(-1)}")  # 마지막 차원 확인
+        logger.debug(f" 1111 Predict mask shape before processing: {predict_mask.size()}")
 
         # predict_logits = logits.masked_select(predict_mask.unsqueeze(-1)).view(logits.size(0), self.num_labels, -1)
         # predict_logits = logits  # 모델의 출력을 그대로 사용
@@ -101,43 +104,24 @@ class PredictWrapper:
         #     predict_logits = logits
 
         # Reshape logits to [batch_size, num_labels, num_classes]
-        batch_size = logits.size(0)
 
-        # num_classes 계산 및 검증
-        if logits.size(-1) % self.num_labels != 0:
+        # logits 크기 검증
+        if logits.size(-1) != self.num_labels * self.num_classes:
             raise ValueError(
                 f"Logits last dimension ({logits.size(-1)}) is not divisible by num_labels ({self.num_labels})."
             )
 
-        num_classes = logits.size(-1) // self.num_labels
-
-
-        
 
 
         logger.debug(f"Logits shape before: {logits.size()}")
-        logits = logits.view(batch_size, self.num_labels, num_classes)  # Infer num_classes dynamically
+        logits = logits.view(-1, self.num_labels, self.num_classes)
         logger.debug(f"Logits shape after: {logits.size()}")
+        logger.debug(f"Logits will be reshaped to aft: (batch_size={batch_size}, num_labels={self.num_labels}, num_classes={num_classes})")
 
-        # predict_mask 검증
-        if predict_mask.size(1) != logits.size(1) * logits.size(2):
-            raise ValueError(
-                f"Predict mask size ({predict_mask.size(1)}) does not match logits sequence length ({logits.size(1) * logits.size(2)})."
-            )
-        
         
 
-        # Ensure predict_mask matches [batch_size, num_labels, num_classes]
-        predict_mask = predict_mask.view(batch_size, self.num_labels, num_classes)
-        logger.debug(f"Reshaped predict_mask: {predict_mask.size()}")
-
-        # Apply predict_mask to logits
-        predict_logits = logits.masked_select(predict_mask).view(batch_size, -1)
-
-        logger.debug(f"Final predict_logits shape: {predict_logits.size()}")
         
-        
-        return predict_logits
+        return logits
 
 
 
@@ -247,7 +231,7 @@ def evaluation_fn(predict_logits, gold_labels):
     # preds = (torch.sigmoid(predict_logits) >= 0.5).float()
 
     preds = torch.argmax(predict_logits, dim=1)
-    correct = (preds == gold_labels.float()).float()
+    correct = (preds == gold_labels).float()
     accuracy = correct.mean()
     return accuracy
 
@@ -784,13 +768,13 @@ def evaluate_triggers(predictor, dev_loader, evaluation_fn, trigger_ids, device)
             predict_logits = predictor(model_inputs, trigger_ids)
 
             logger.debug(f"Predict logits shape: {predict_logits.size()}, Labels shape: {labels.size()}")
+            # 디버깅: predict_logits 구조 출력
+            logger.debug(f"Predict logits shape: {predict_logits.size()}, Values: {predict_logits[:2]}")
+            logger.debug(f"Labels shape: {labels.size()}, Values: {labels[:2]}")
 
+            # logits에서 예측된 클래스 인덱스 추출
+            predictions = torch.argmax(predict_logits, dim=-1)  # (batch_size, num_labels)
 
-
-            # logits 크기 확인
-            if len(predict_logits.size()) != 3:
-                logger.error(f"Expected logits to have 3 dimensions, got {predict_logits.size()}")
-                raise ValueError(f"Expected logits to have 3 dimensions, got {predict_logits.size()}")
 
             # predict_logits이 (batch_size, num_labels)인지 확인 필요
 
@@ -804,9 +788,12 @@ def evaluate_triggers(predictor, dev_loader, evaluation_fn, trigger_ids, device)
 
             # accuracy = evaluation_fn(logits_flat, labels_flat)
             # Directly calculate accuracy
-            accuracy = evaluation_fn(predict_logits, labels)
+            
+            # 레이블과 예측 비교
+            correct = (predictions == labels).float()
+            accuracy = correct.mean().item()  # 배치 정확도 계산
 
-        total_accuracy += accuracy.item()
+        total_accuracy += accuracy
         total_batches += 1
 
     # dev_metric = total_correct / (total_count + 1e-13)
@@ -918,7 +905,9 @@ def run_model(args):
     model = AutoPopsicle.from_pretrained(str(args.ckpt_dir), config=config)  # AutoPopsicle 로드
     # 모델의 임베딩 크기를 토크나이저에 맞게 조정
     model.resize_token_embeddings(len(tokenizer))
-    model.to(device)
+    model.to(device) 
+
+
     
     embeddings = get_embeddings(model, config)
     embedding_gradient = GradientStorage(embeddings)

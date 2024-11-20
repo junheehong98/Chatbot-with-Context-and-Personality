@@ -102,8 +102,10 @@ class Bertsicle(BertForSequenceClassification):
 
         logits = logits.view(-1, 5, 2)  # 5개의 특성, 각 특성당 3개의 점수 예측
         
-        outputs = (logits,) + outputs[2:]  # add hidden states and attention if they are here
+        # outputs = (logits,) + outputs[2:]  # add hidden states and attention if they are here
+        outputs = (logits,)  # Hidden states 및 Attention은 생략
 
+        
         if labels is not None:
             '''
             loss_fct = CrossEntropyLoss()
