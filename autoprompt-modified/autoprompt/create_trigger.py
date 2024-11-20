@@ -102,12 +102,30 @@ class PredictWrapper:
 
         # Reshape logits to [batch_size, num_labels, num_classes]
         batch_size = logits.size(0)
+
+        # num_classes 계산 및 검증
+        if logits.size(-1) % self.num_labels != 0:
+            raise ValueError(
+                f"Logits last dimension ({logits.size(-1)}) is not divisible by num_labels ({self.num_labels})."
+            )
+
         num_classes = logits.size(-1) // self.num_labels
+
+
+        
 
 
         logger.debug(f"Logits shape before: {logits.size()}")
         logits = logits.view(batch_size, self.num_labels, num_classes)  # Infer num_classes dynamically
         logger.debug(f"Logits shape after: {logits.size()}")
+
+        # predict_mask 검증
+        if predict_mask.size(1) != logits.size(1) * logits.size(2):
+            raise ValueError(
+                f"Predict mask size ({predict_mask.size(1)}) does not match logits sequence length ({logits.size(1) * logits.size(2)})."
+            )
+        
+        
 
         # Ensure predict_mask matches [batch_size, num_labels, num_classes]
         predict_mask = predict_mask.view(batch_size, self.num_labels, num_classes)
