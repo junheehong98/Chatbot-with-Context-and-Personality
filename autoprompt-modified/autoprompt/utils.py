@@ -155,14 +155,33 @@ class TriggerTemplatizer:
     def __call__(self, format_kwargs):
         # Format the template string
         format_kwargs = format_kwargs.copy()
-        # 템플릿 생성
-        text = format_kwargs['text']
-        labels = [format_kwargs[f'Label{i}'] for i in range(1, 6)]       
+        # 각각의 레이블 컬럼에서 값 추출
+        label1 = format_kwargs.get('Label1')
+        label2 = format_kwargs.get('Label2')
+        label3 = format_kwargs.get('Label3')
+        label4 = format_kwargs.get('Label4')
+        label5 = format_kwargs.get('Label5')
+        
+        labels = [int(label) for label in [label1, label2, label3, label4, label5]]
+        
+        
+        if not isinstance(labels, list):
+            raise TypeError(f"Expected list of labels, but got {type(labels)} instead.")
     
+        
+        text = self._template.format(**format_kwargs)
+        
         
         if text is None:
             raise Exception(f'Bad data: {text}')
         
+        # 디버깅 출력 추가
+        tokenized_text = self._tokenizer.tokenize(text)
+        # print(f"Tokenized text: {tokenized_text}")
+        
+        # 토크나이즈된 토큰 ID 출력
+        token_ids = self._tokenizer.convert_tokens_to_ids(tokenized_text)
+        # print(f"Token IDs: {token_ids}")
 
         # Have the tokenizer encode the text and process the output to:
         # - Create a trigger and predict mask
@@ -172,12 +191,9 @@ class TriggerTemplatizer:
             add_special_tokens=True,
             return_tensors='pt'
         )
-
-
         input_ids = model_inputs['input_ids']
         trigger_mask = input_ids.eq(self._tokenizer.trigger_token_id)
         predict_mask = input_ids.eq(self._tokenizer.predict_token_id)
-
         input_ids[predict_mask] = self._tokenizer.mask_token_id
 
         model_inputs['trigger_mask'] = trigger_mask
@@ -243,37 +259,28 @@ def load_trigger_dataset(fname, templatizer, use_ctx, limit=None):
     loader = LOADERS[fname.suffix]
     instances = []
 
-    for x in loader(fname):       
+    for x in loader(fname):
+        if 'text' not in x or any(f'Label{i}' not in x for i in range(1, 6)):
+            logger.warning("Missing required fields in data. Skipping row.")
+            continue
 
         # logger.info(f"Loaded row: {x}")  # 디버깅 추가
 
         try:
-
-            # 필드 유효성 검사
-            if not all(field in x for field in ['text', 'Label1', 'Label2', 'Label3', 'Label4', 'Label5']):
-                logger.warning(f"Skipping row due to missing fields: {x}")
-                continue
-
-            # input_text = x['text']
-            # labels = [int(x[f'Label{i}']) for i in range(1, 6)]
-            # 레이블을 문자열로 추출 후 유효성 검사
-            model_inputs, label_ids = templatizer({
-                'text': x['text'],  # `row`를 `x`로 변경
-                'Label1': int(x['Label1']),
-                'Label2': int(x['Label2']),
-                'Label3': int(x['Label3']),
-                'Label4': int(x['Label4']),
-                'Label5': int(x['Label5']),
+            input_text = x['text']
+            labels = [int(x[f'Label{i}']) for i in range(1, 6)]
+            model_inputs, label_id = templatizer({
+                'input_text': input_text,
+                'Label1': labels[0],
+                'Label2': labels[1],
+                'Label3': labels[2],
+                'Label4': labels[3],
+                'Label5': labels[4],
             })
-            instances.append((model_inputs, label_ids))
+            instances.append((model_inputs, label_id))
         except ValueError as e:
-            logger.warning(f"Skipping row due to error: {e}")
-            continue  # 에러 발생 시 해당 행 건너뜀
+            logger.warning('Encountered error "%s" when processing "%s". Skipping.', e, x)
     logger.info(f"Number of instances loaded: {len(instances)}")  # 디버깅 추가
-    # 샘플 제한이 설정된 경우 제한된 데이터 반환
-    if limit:
-        instances = random.sample(instances, min(limit, len(instances)))
-
     return instances
     '''
 
