@@ -161,7 +161,7 @@ def hotflip_attack(averaged_grad,
             # averaged_grad
             
              # embedding_matrix, averaged_grad.view(-1, embedding_matrix.size(1)
-             averaged_grad.view(1, -1), embedding_matrix.t()
+             averaged_grad.view(-1, embedding_matrix.size(1)), embedding_matrix.t()
         )
              
         
