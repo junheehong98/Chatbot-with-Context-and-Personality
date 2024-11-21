@@ -342,14 +342,14 @@ def find_and_evaluate_triggers(model, tokenizer, templatizer, predictor, embeddi
         # 후보자 생성 및 평가
         logger.info('Evaluating Candidates')
         token_to_flip = random.randrange(templatizer.num_trigger_tokens)
-        best_candidate_score, best_candidate_idx, candidates = evaluate_candidates(
+        best_candidate_score, best_candidate_idx, candidates, current_score = evaluate_candidates(
             model, predictor, train_loader, averaged_grad, trigger_ids, args, tokenizer, embeddings, filter, token_to_flip, evaluation_fn
         )
 
-        if best_candidate_score > best_dev_metric:
+        if best_candidate_score > current_score:
             logger.info('Better trigger detected.')
             trigger_ids[:, token_to_flip] = candidates[best_candidate_idx]
-            best_dev_metric = best_candidate_score
+            # best_dev_metric = best_candidate_score
         else:
             logger.info('No improvement detected. Skipping evaluation.')
             continue
@@ -531,7 +531,7 @@ def evaluate_candidates(model, predictor, train_loader, averaged_grad, trigger_i
     best_candidate_score = candidate_scores.max()
     best_candidate_idx = candidate_scores.argmax()
 
-    return best_candidate_score, best_candidate_idx, candidates
+    return best_candidate_score, best_candidate_idx, candidates, current_score / (denom + 1e-13)
 
 def run_model(args):
 
