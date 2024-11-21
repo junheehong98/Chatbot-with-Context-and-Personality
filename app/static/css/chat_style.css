@@ -1,3 +1,5 @@
+
+
 body {
     display: flex;
     justify-content: center;
@@ -9,7 +11,7 @@ body {
 }
 .chat-box {
     width: 800px;
-    max-height: 700px; 
+    max-height: 600px; 
     overflow-y: auto;
     flex-direction: column;
     display: flex;
@@ -97,7 +99,7 @@ button[type="submit"] {
     color: white;
     border: none;
     padding: 10px 20px;
-    font-size: 10pt;
+    font-size: 12pt;
     cursor: pointer;
     border-radius: 20px;
 }
@@ -127,3 +129,4 @@ h1 {
     font-weight: bold;
     text-align: center;
 }
+    

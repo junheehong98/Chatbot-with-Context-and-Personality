@@ -39,7 +39,7 @@
             <h3 style="font-size: 24px;">Select characteristics</h3>
             <div>
                 {% for characteristic_set in characteristics %}
-                    <div class="characteristic-group characteristic-group-{{ loop.index0 }}">
+                    <div class="characteristic-group characteristic-group-{{ loop.index0 }}" style="text-align: center;">
                         <button type="button" class="characteristic-btn" onclick="selectCharacteristic('{{ loop.index0 }}', '{{ characteristic_set[0] }}', this)">{{ characteristic_set[0] }}</button>
                         <button type="button" class="characteristic-btn" onclick="selectCharacteristic('{{ loop.index0 }}', '{{ characteristic_set[1] }}', this)">{{ characteristic_set[1] }}</button>
                     </div>
