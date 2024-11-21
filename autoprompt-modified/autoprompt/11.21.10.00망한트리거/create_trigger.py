@@ -62,8 +62,13 @@ class PredictWrapper:
         
         # logits을 (batch_size, num_labels, num_classes)로 변환
         predict_logits = logits.view(logits.size(0), self.num_labels, 2)
+
         
         return predict_logits
+
+        
+    
+
 
 
 class AccuracyFn:
@@ -155,13 +160,18 @@ def hotflip_attack(averaged_grad,
             # embedding_matrix,
             # averaged_grad
             
-            averaged_grad.view(-1, embedding_matrix.size(1)), embedding_matrix.t()
+             # embedding_matrix, averaged_grad.view(-1, embedding_matrix.size(1)
+             averaged_grad.view(-1, embedding_matrix.size(1)), embedding_matrix.t()
         )
+             
+        
         if filter is not None:
             gradient_dot_embedding_matrix -= filter
         if not increase_loss:
             gradient_dot_embedding_matrix *= -1
         _, top_k_ids = gradient_dot_embedding_matrix.topk(num_candidates)
+        top_k_ids = top_k_ids.squeeze()
+
 
     return top_k_ids
 
@@ -239,7 +249,15 @@ def get_loss(predict_logits, label_ids, num_labels):
     # loss = sum(F.cross_entropy(predict_logits[:, i, :], label_ids[:, i]) for i in range(num_labels)) / num_labels
     
     # predict_logits와 label_ids의 차원에 맞게 손실 계산
-    loss = F.cross_entropy(predict_logits.view(-1, predict_logits.size(-1)), label_ids.view(-1))
+    # loss = F.cross_entropy(predict_logits.view(-1, predict_logits.size(-1)), label_ids.view(-1))
+
+    positive_class_logits = predict_logits[:, :, 1]
+    # label_ids를 float형으로 변환
+    label_ids = label_ids.float()
+
+    # 바이너리 크로스 엔트로피 손실 계산
+    loss = F.binary_cross_entropy_with_logits(positive_class_logits, label_ids)
+
 
     return loss
     # return -target_logp
@@ -342,14 +360,14 @@ def find_and_evaluate_triggers(model, tokenizer, templatizer, predictor, embeddi
         # 후보자 생성 및 평가
         logger.info('Evaluating Candidates')
         token_to_flip = random.randrange(templatizer.num_trigger_tokens)
-        best_candidate_score, best_candidate_idx, candidates = evaluate_candidates(
+        best_candidate_score, best_candidate_idx, candidates, current_score = evaluate_candidates(
             model, predictor, train_loader, averaged_grad, trigger_ids, args, tokenizer, embeddings, filter, token_to_flip, evaluation_fn
         )
 
-        if best_candidate_score > best_dev_metric:
+        if best_candidate_score > current_score:
             logger.info('Better trigger detected.')
             trigger_ids[:, token_to_flip] = candidates[best_candidate_idx]
-            best_dev_metric = best_candidate_score
+            # best_dev_metric = best_candidate_score
         else:
             logger.info('No improvement detected. Skipping evaluation.')
             continue
@@ -394,12 +412,17 @@ def accumulate_gradients(model, predictor, train_loader, trigger_ids, embedding_
         # 각 레이블별로 손실을 계산하고 평균
         # loss = sum(F.cross_entropy(predict_logits[:, i, :], labels[:, i]) for i in range(args.num_labels)) / args.num_labels
         # 손실 계산 및 역전파
-        loss = 0
-        for i in range(args.num_labels):
-            # print(f"predict_logits[:, {i}, :].shape: {predict_logits[:, i, :].shape}")
-            # print(f"labels[:, {i}].shape: {labels[:, i].shape}")
-            loss += F.cross_entropy(predict_logits[:, i, :], labels[:, i])
-        loss = loss / args.num_labels
+
+
+        # loss = 0
+        # for i in range(args.num_labels):
+        #     # print(f"predict_logits[:, {i}, :].shape: {predict_logits[:, i, :].shape}")
+        #     # print(f"labels[:, {i}].shape: {labels[:, i].shape}")
+        #     loss += F.cross_entropy(predict_logits[:, i, :], labels[:, i])
+        # loss = loss / args.num_labels
+        # 수정된 get_loss 함수를 사용하여 손실 계산
+        loss = -get_loss(predict_logits, labels, args.num_labels)  # 음의 손실의 음수 = 양의 손실
+
         
         
         model.zero_grad()  # 그라디언트 초기화
@@ -460,17 +483,26 @@ def print_lama_template(best_trigger_ids, tokenizer, templatizer, args):
 
 def evaluate_triggers(predictor, dev_loader, evaluation_fn, trigger_ids, device):
     total_correct = 0
+    total_eval_metric = 0  # total_eval_metric 변수 초기화
     total_count = 0
     for model_inputs, labels in tqdm(dev_loader):
         model_inputs = {k: v.to(device) for k, v in model_inputs.items()}
         labels = labels.to(device)
         with torch.no_grad():
+            # predict_logits = predictor(model_inputs, trigger_ids)
+            # # predict_logits = predict_logits.view(-1, args.num_labels, 3)
+            # preds = torch.argmax(predict_logits, dim=-1)
+            # correct = (preds == labels).sum().item()
+            # total_correct += correct
+            # total_count += labels.numel()
+
+
+
             predict_logits = predictor(model_inputs, trigger_ids)
-            # predict_logits = predict_logits.view(-1, args.num_labels, 3)
-            preds = torch.argmax(predict_logits, dim=-1)
-            correct = (preds == labels).sum().item()
-            total_correct += correct
-            total_count += labels.numel()
+            eval_metric = evaluation_fn(predict_logits, labels)
+            total_eval_metric += eval_metric.item() * labels.size(0)
+            total_count += labels.size(0)
+
     dev_metric = total_correct / (total_count + 1e-13)
     logger.info(f'Dev metric: {dev_metric}')
     return dev_metric
@@ -517,21 +549,26 @@ def evaluate_candidates(model, predictor, train_loader, averaged_grad, trigger_i
             predict_logits = predictor(model_inputs, trigger_ids)
             eval_metric = evaluation_fn(predict_logits, labels)
 
-        current_score += eval_metric.sum()
+        # current_score += eval_metric.sum()
+        current_score += eval_metric.item() * labels.size(0)
         denom += labels.size(0)
 
         for i, candidate in enumerate(candidates):
             temp_trigger = trigger_ids.clone()
-            temp_trigger[:, token_to_flip] = candidate[0]
+            temp_trigger[:, token_to_flip] = candidate
             with torch.no_grad():
                 predict_logits = predictor(model_inputs, temp_trigger)
                 eval_metric = evaluation_fn(predict_logits, labels)
-            candidate_scores[i] += eval_metric.sum()
+            # candidate_scores[i] += eval_metric.sum()
+            candidate_scores[i] += eval_metric.item() * labels.size(0)
+
+    current_score = current_score / (denom + 1e-13)
+    candidate_scores = candidate_scores / (denom + 1e-13)
 
     best_candidate_score = candidate_scores.max()
     best_candidate_idx = candidate_scores.argmax()
 
-    return best_candidate_score, best_candidate_idx, candidates
+    return best_candidate_score, best_candidate_idx, candidates, current_score
 
 def run_model(args):
 
