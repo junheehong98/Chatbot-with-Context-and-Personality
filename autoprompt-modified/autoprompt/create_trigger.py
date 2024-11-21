@@ -170,6 +170,7 @@ def hotflip_attack(averaged_grad,
         if not increase_loss:
             gradient_dot_embedding_matrix *= -1
         _, top_k_ids = gradient_dot_embedding_matrix.topk(num_candidates)
+        top_k_ids = top_k_ids.squeeze()
 
 
     return top_k_ids
@@ -365,7 +366,7 @@ def find_and_evaluate_triggers(model, tokenizer, templatizer, predictor, embeddi
 
         if best_candidate_score > current_score:
             logger.info('Better trigger detected.')
-            trigger_ids[:, token_to_flip] = candidates[best_candidate_idx].item()
+            trigger_ids[:, token_to_flip] = candidates[best_candidate_idx]
             # best_dev_metric = best_candidate_score
         else:
             logger.info('No improvement detected. Skipping evaluation.')
@@ -554,7 +555,7 @@ def evaluate_candidates(model, predictor, train_loader, averaged_grad, trigger_i
 
         for i, candidate in enumerate(candidates):
             temp_trigger = trigger_ids.clone()
-            temp_trigger[:, token_to_flip] = candidate.item()
+            temp_trigger[:, token_to_flip] = candidate
             with torch.no_grad():
                 predict_logits = predictor(model_inputs, temp_trigger)
                 eval_metric = evaluation_fn(predict_logits, labels)
