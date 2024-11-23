@@ -600,6 +600,7 @@ def run_model(user_prompt, personality, args=None):
             filter=True,
             num_labels=5,
             seed=42,
+            personality=personality,  # 사용자 지정 성격 조합
         )
         '''
         # Default arguments for args
@@ -628,8 +629,6 @@ def run_model(user_prompt, personality, args=None):
     set_seed(args.seed)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-
-
     logger.info('Loading model, tokenizer, etc.')
     
     '''
@@ -652,14 +651,6 @@ def run_model(user_prompt, personality, args=None):
     # 모델의 임베딩 크기를 토크나이저에 맞게 조정
     model.resize_token_embeddings(len(tokenizer))
     model.to(device)
-
-    
-    # Predictor 및 Embedding Gradient 설정
-    embeddings = get_embeddings(model, config)
-    embedding_gradient = GradientStorage(embeddings)
-    predictor = PredictWrapper(model, args.num_labels)
-
-
     
     
     
@@ -687,57 +678,38 @@ def run_model(user_prompt, personality, args=None):
     
     
     # Validate personality combination
-    validate_personality(personality)
+    validate_personality(args.personality)
     
     # 데이터 인스턴스 생성
     data_instance = {
         'input_text': user_prompt,
-        'Label1': personality[0],
-        'Label2': personality[1],
-        'Label3': personality[2],
-        'Label4': personality[3],
-        'Label5': personality[4],
+        'Label1': args.personality[0],
+        'Label2': args.personality[1],
+        'Label3': args.personality[2],
+        'Label4': args.personality[3],
+        'Label5': args.personality[4],
     }
-    
-
     logger.debug(f"Data instance passed to templatizer: {data_instance}")
     
     # 템플라이저를 통해 모델 입력과 레이블 생성
     model_inputs, labels = templatizer(data_instance)
-
-    # 디버깅: templatizer 결과 확인
-    print("[DEBUG] Initial model_inputs shapes and types:")
-    for key, value in model_inputs.items():
-        print(f"  {key}: shape={value.shape}, type={type(value)}")
-    print(f"[DEBUG] Initial labels shape: {labels.shape}, type: {type(labels)}")
-
-
-    # model_inputs = {k: v.to(device) for k, v in model_inputs.items()}
-    print(f"model_inputs shapes before adjustment:")
-    # 장치로 이동 (차원 조작은 하지 않음)
     model_inputs = {k: v.to(device) for k, v in model_inputs.items()}
     labels = labels.to(device)
-
-
-    # 디버깅: model_inputs 변환 후 확인
-    print("[DEBUG] Transformed model_inputs shapes and types:")
-    for key, value in model_inputs.items():
-        print(f"  {key}: shape={value.shape}, type={type(value)}")
     
-    # labels도 동일하게 처리
-    print(f"[DEBUG] Labels shape after moving to device: {labels.shape}")
-
-    # 텐서 차원 검증
-    for key in model_inputs:
-        assert model_inputs[key].dim() == 2, f"{key} should be 2D, got {model_inputs[key].shape}"
-    assert labels.dim() == 2, f"Labels should be 2D, got {labels.shape}"
-
-        
+    # Predictor 및 Embedding Gradient 설정
+    embeddings = get_embeddings(model, config)
+    embedding_gradient = GradientStorage(embeddings)
+    predictor = PredictWrapper(model, args.num_labels)
     
     
-    
-    
-    
+    # 트리거 토큰 초기화
+    if args.initial_trigger:
+        trigger_ids = tokenizer.convert_tokens_to_ids(args.initial_trigger)
+        logger.info(f'Initial trigger tokens: {args.initial_trigger}')
+    else:
+        trigger_ids = [tokenizer.mask_token_id] * templatizer.num_trigger_tokens
+        logger.info(f'Initial trigger IDs: {trigger_ids}')
+    trigger_ids = torch.tensor(trigger_ids, device=device).unsqueeze(0)
     
     # 평가 함수 설정
     evaluation_fn = lambda x, y: -get_loss(x, y, args.num_labels)
@@ -750,17 +722,6 @@ def run_model(user_prompt, personality, args=None):
     
     # 필터 생성
     filter = create_token_filter(tokenizer, args, None, train_loader)
-
-    # 트리거 토큰 초기화
-    if args.initial_trigger:
-        trigger_ids = tokenizer.convert_tokens_to_ids(args.initial_trigger)
-        logger.info(f'Initial trigger tokens: {args.initial_trigger}')
-    else:
-        trigger_ids = [tokenizer.mask_token_id] * templatizer.num_trigger_tokens
-        logger.info(f'Initial trigger IDs: {trigger_ids}')
-    trigger_ids = torch.tensor(trigger_ids, device=device).unsqueeze(0)
-    
-
     
     
     # 트리거 탐색 및 평가
@@ -774,18 +735,15 @@ def run_model(user_prompt, personality, args=None):
     best_trigger_tokens = tokenizer.convert_ids_to_tokens(best_trigger_ids.squeeze(0))
     logger.info(f'Best trigger tokens: {best_trigger_tokens}')
     
+    # 템플릿에 트리거 토큰 적용하여 최종 프롬프트 생성
+    final_prompt = args.template.replace('{input_text}', user_prompt)
+    for idx, token in enumerate(best_trigger_tokens):
+        final_prompt = final_prompt.replace(f'[T]', token, 1)
+    # [P]는 GPT의 응답이 들어갈 자리이므로 그대로 유지
 
-    # # 템플릿에 트리거 토큰 적용하여 최종 프롬프트 생성
-    # final_prompt = args.template.replace('{input_text}', user_prompt)
-    # for idx, token in enumerate(best_trigger_tokens):
-    #     final_prompt = final_prompt.replace(f'[T]', token, 1)
-    # # [P]는 GPT의 응답이 들어갈 자리이므로 그대로 유지
-
-    # logger.info(f'Final prompt: {final_prompt}')
-
+    logger.info(f'Final prompt: {final_prompt}')
     
-    # return final_prompt
-    return best_trigger_tokens
+    return final_prompt
 
     '''
 

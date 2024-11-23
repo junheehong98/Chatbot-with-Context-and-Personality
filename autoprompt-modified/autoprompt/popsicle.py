@@ -38,7 +38,7 @@ class Bertsicle(BertForSequenceClassification):
         self.dense2 = torch.nn.Linear(hidden_size, hidden_size // 2)
         self.dense3 = torch.nn.Linear(hidden_size // 2, hidden_size // 4)
         self.dense4 = torch.nn.Linear(hidden_size // 4, hidden_size // 8)
-        self.dense5 = torch.nn.Linear(hidden_size // 8, num_classes * num_features)
+        self.dense5 = torch.nn.Linear(hidden_size // 8, num_features)
         self.dropout = torch.nn.Dropout(0.3)
 
 
@@ -100,20 +100,20 @@ class Bertsicle(BertForSequenceClassification):
         logits = self.dense5(x)
 
 
-        logits = logits.view(-1, 5, 2)  # 5개의 특성, 각 특성당 3개의 점수 예측
+        # logits = logits.view(-1, 5, 2)  # 5개의 특성, 각 특성당 3개의 점수 예측
         
         # outputs = (logits,) + outputs[2:]  # add hidden states and attention if they are here
         outputs = (logits,)  # Hidden states 및 Attention은 생략
 
         
         if labels is not None:
-            '''
-            loss_fct = CrossEntropyLoss()
-            loss = loss_fct(logits.view(-1, 3), labels.view(-1))
+            
+            loss_fct = torch.nn.BCEWithLogitsLoss()
+            loss = loss_fct(logits, labels.float())
             outputs = (loss,) + outputs
-            '''
+            
             # 손실 계산을 여기서 제거합니다.
-            pass  # 또는 아무 작업도 하지 않음
+            #pass  # 또는 아무 작업도 하지 않음
 
         return outputs  # (loss), logits, (hidden_states), (attentions)
 

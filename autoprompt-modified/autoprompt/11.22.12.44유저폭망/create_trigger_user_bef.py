@@ -698,8 +698,6 @@ def run_model(user_prompt, personality, args=None):
         'Label4': personality[3],
         'Label5': personality[4],
     }
-    
-
     logger.debug(f"Data instance passed to templatizer: {data_instance}")
     
     # 템플라이저를 통해 모델 입력과 레이블 생성
@@ -714,23 +712,21 @@ def run_model(user_prompt, personality, args=None):
 
     # model_inputs = {k: v.to(device) for k, v in model_inputs.items()}
     print(f"model_inputs shapes before adjustment:")
-    # 장치로 이동 (차원 조작은 하지 않음)
-    model_inputs = {k: v.to(device) for k, v in model_inputs.items()}
-    labels = labels.to(device)
+    # 배치 차원 추가 및 장치로 이동
+    for key in model_inputs:
+        if model_inputs[key].dim() == 1:  # 1D 텐서만 배치 차원 추가
+            model_inputs[key] = model_inputs[key].unsqueeze(0)
 
 
     # 디버깅: model_inputs 변환 후 확인
     print("[DEBUG] Transformed model_inputs shapes and types:")
     for key, value in model_inputs.items():
         print(f"  {key}: shape={value.shape}, type={type(value)}")
-    
-    # labels도 동일하게 처리
-    print(f"[DEBUG] Labels shape after moving to device: {labels.shape}")
 
-    # 텐서 차원 검증
-    for key in model_inputs:
-        assert model_inputs[key].dim() == 2, f"{key} should be 2D, got {model_inputs[key].shape}"
-    assert labels.dim() == 2, f"Labels should be 2D, got {labels.shape}"
+
+    # labels도 동일하게 처리
+    if labels.dim() == 1:
+        labels = labels.unsqueeze(0)
 
         
     

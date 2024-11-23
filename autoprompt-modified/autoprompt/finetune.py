@@ -133,14 +133,23 @@ def main(args):
                  # 수정된 부분: 모델 출력 및 손실 계산 방식 복원
                 logits, *_ = model(**model_inputs)
                 # print(f"Logits shape: {logits.shape}")  # 로그: logits의 실제 크기를 출력합니다.
-                logits = logits.view(-1, args.num_labels, 2)  # (batch_size, num_labels, num_classes)
+
+
+
+                # logits = logits.view(-1, args.num_labels, 2)  # (batch_size, num_labels, num_classes)
+
+
                 # 각 레이블에 대해 손실 계산 및 합산
                 # loss = sum(F.cross_entropy(logits[:, i, :], labels[:, i]) for i in range(args.num_labels)) / args.num_labels
                 # loss_fct = CrossEntropyLoss(label_smoothing=0.1)  # Label Smoothing 적용
-                loss_fct = CrossEntropyLoss()
-                loss = sum(loss_fct(logits[:, i, :], labels[:, i]) for i in range(args.num_labels)) / args.num_labels
 
-                
+
+
+                # loss_fct = CrossEntropyLoss()
+                # loss = sum(loss_fct(logits[:, i, :], labels[:, i]) for i in range(args.num_labels)) / args.num_labels
+
+                loss_fct = torch.nn.BCEWithLogitsLoss()
+                loss = loss_fct(logits, labels.float())
                 
                 loss.backward()
                 optimizer.step()
@@ -160,8 +169,10 @@ def main(args):
                    
                     
                     logits, *_ = model(**model_inputs)
-                    logits = logits.view(-1, args.num_labels, 2)  # (batch_size, num_labels, num_classes)
-                    preds = torch.argmax(logits, dim=-1)  # 각 레이블에 대한 예측값 계산
+                    #logits = logits.view(-1, args.num_labels, 2)  # (batch_size, num_labels, num_classes)
+                    #preds = torch.argmax(logits, dim=-1)  # 각 레이블에 대한 예측값 계산
+                    preds = (logits > 0).long()  # 단일 로짓 기반 이진 분류
+
                     correct += (preds == labels).sum().item()
                     total += labels.numel()
                 accuracy = correct / (total + 1e-13)
@@ -185,8 +196,11 @@ def main(args):
             labels = labels.to(device)
             
             logits, *_ = model(**model_inputs)
-            logits = logits.view(-1, args.num_labels, 2)  # (batch_size, num_labels, num_classes)
-            preds = torch.argmax(logits, dim=-1)  # 각 레이블에 대한 예측값 계산
+            #logits = logits.view(-1, args.num_labels, 2)  # (batch_size, num_labels, num_classes)
+            #preds = torch.argmax(logits, dim=-1)  # 각 레이블에 대한 예측값 계산
+            preds = (logits > 0).long()  # 단일 로짓 기반 이진 분류
+
+
             correct += (preds == labels).sum().item()
             total += labels.numel()
         accuracy = correct / (total + 1e-13)
