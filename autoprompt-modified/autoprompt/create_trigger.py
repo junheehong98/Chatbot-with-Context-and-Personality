@@ -515,7 +515,15 @@ def evaluate_candidates(model, predictor, dev_loader, averaged_grad, trigger_ids
     # 검증 데이터셋을 이용해 각 후보 점수 계산
     for candidate in candidates:
         temp_trigger_ids = trigger_ids.clone()  # 트리거 복사
-        temp_trigger_ids[:, token_to_flip] = candidate.unsqueeze(0)  # 특정 위치의 토큰 변경
+        temp_trigger_ids[:, token_to_flip] = candidate  # 특정 위치의 토큰 변경
+
+
+        
+        logger.debug(f"temp_trigger_ids shape: {temp_trigger_ids.shape}")  # 추가
+        logger.debug(f"temp_trigger_ids[:, token_to_flip] shape: {temp_trigger_ids[:, token_to_flip].shape}")  # 추가
+        logger.debug(f"candidate shape: {candidate.shape}")  # 추가
+
+
 
         # 검증 데이터 전체를 사용해 평가
         dev_metric = evaluate_triggers(
