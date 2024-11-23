@@ -512,11 +512,13 @@ def evaluate_candidates(model, predictor, dev_loader, averaged_grad, trigger_ids
     # 후보 점수 저장 리스트
     candidate_scores = []
 
+    logger.info(f"candidates shape: {candidates.shape}")
+
     # 검증 데이터셋을 이용해 각 후보 점수 계산
     for i, candidate in enumerate(candidates):
         temp_trigger_ids = trigger_ids.clone()  # 트리거 복사
 
-
+        logger.info(f"candidate value: {candidate}")
         logger.info(f"temp_trigger_ids shape: {temp_trigger_ids.shape}")  # 추가
         logger.info(f"temp_trigger_ids[:, token_to_flip] shape: {temp_trigger_ids[:, token_to_flip].shape}")  # 추가
         logger.info(f"candidate shape: {candidate.shape}")  # 추가
