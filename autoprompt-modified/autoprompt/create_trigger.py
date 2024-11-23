@@ -513,7 +513,7 @@ def evaluate_candidates(model, predictor, dev_loader, averaged_grad, trigger_ids
     candidate_scores = []
 
     # 검증 데이터셋을 이용해 각 후보 점수 계산
-    for candidate in candidates:
+    for i, candidate in enumerate(candidates):
         temp_trigger_ids = trigger_ids.clone()  # 트리거 복사
 
 
