@@ -366,8 +366,9 @@ def find_and_evaluate_triggers(model, tokenizer, templatizer, predictor, embeddi
         candidate_scores = torch.zeros(len(candidates), device=device)
 
         for idx, candidate in enumerate(candidates):
-            temp_trigger_ids = trigger_ids.clone()
-            temp_trigger_ids[:, token_to_flip] = candidate.item()
+            logger.info(f"Processing candidate {idx} with shape {candidate.shape}")
+            temp_trigger_ids = trigger_ids.clone()            
+            temp_trigger_ids[:, token_to_flip] = candidate[0].item()
 
             dev_metric = evaluate_triggers(predictor, dev_loader, evaluation_fn, temp_trigger_ids, device)
             candidate_scores[idx] = dev_metric
