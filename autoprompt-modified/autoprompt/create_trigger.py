@@ -335,6 +335,7 @@ def find_and_evaluate_triggers(model, tokenizer, templatizer, predictor, embeddi
         assert len(trigger_ids) == templatizer.num_trigger_tokens
     else:
         trigger_ids = [tokenizer.mask_token_id] * templatizer.num_trigger_tokens
+        logger.debug("Using [MASK] as initial trigger tokens.")
     
     # 트리거 토큰의 길이와 템플릿의 [T] 개수가 맞는지 확인하는 부분
     assert len(trigger_ids) == templatizer.num_trigger_tokens, \
@@ -505,9 +506,8 @@ def evaluate_candidates(model, predictor, dev_loader, averaged_grad, trigger_ids
                                 embeddings.weight,
                                 increase_loss=False,
                                 num_candidates=args.num_cand,
-                                filter=filter)
+                                filter=filter)  
     
-    candidate_scores = []
 
     # 후보 점수 저장 리스트
     candidate_scores = []
@@ -515,7 +515,7 @@ def evaluate_candidates(model, predictor, dev_loader, averaged_grad, trigger_ids
     # 검증 데이터셋을 이용해 각 후보 점수 계산
     for candidate in candidates:
         temp_trigger_ids = trigger_ids.clone()  # 트리거 복사
-        temp_trigger_ids[:, token_to_flip] = candidate  # 특정 위치의 토큰 변경
+        temp_trigger_ids[:, token_to_flip] = candidate.unsqueeze(0)  # 특정 위치의 토큰 변경
 
         # 검증 데이터 전체를 사용해 평가
         dev_metric = evaluate_triggers(
