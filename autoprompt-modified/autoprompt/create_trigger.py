@@ -171,7 +171,10 @@ def hotflip_attack(averaged_grad,
             # embedding_matrix,
             # averaged_grad
             
-            averaged_grad.view(-1, embedding_matrix.size(1)), embedding_matrix.t()
+            # averaged_grad.view(-1, embedding_matrix.size(1)), embedding_matrix.t()
+            embedding_matrix,
+            averaged_grad  # shape: (embedding_dim,)
+
         )
         if filter is not None:
             gradient_dot_embedding_matrix -= filter
