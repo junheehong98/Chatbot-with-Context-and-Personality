@@ -360,15 +360,18 @@ def find_and_evaluate_triggers(model, tokenizer, templatizer, predictor, embeddi
 
         # 디버깅: candidates와 trigger_ids의 크기 확인
         logger.info(f"Candidates shape: {candidates.shape}")  # Candidates 크기 확인
+        logger.info(f"Sample candidates: {candidates[:, :5]}")  # 첫 5개 후보 확인
         logger.info(f"Trigger IDs shape: {trigger_ids.shape}")  # Trigger IDs 크기 확인
         logger.info(f"Token to flip: {token_to_flip}")
 
-        candidate_scores = torch.zeros(len(candidates), device=device)
+        candidate_scores = torch.zeros(candidates.shape[1], device=device)
 
-        for idx, candidate in enumerate(candidates):
-            logger.info(f"Processing candidate {idx} with shape {candidate.shape}")
+        for idx in range(candidates.size(1)): 
+            # logger.info(f"Processing candidate {idx} with shape {candidate.shape}")
+            candidate = candidates[:, idx]
             temp_trigger_ids = trigger_ids.clone()            
-            temp_trigger_ids[:, token_to_flip] = candidate[0].item()
+            temp_trigger_ids[:, token_to_flip] = candidate.item()  # 단일 값 사용
+            logger.info(f"Evaluating candidate {idx}: {candidate.item()}")
 
             dev_metric = evaluate_triggers(predictor, dev_loader, evaluation_fn, temp_trigger_ids, device)
             candidate_scores[idx] = dev_metric
