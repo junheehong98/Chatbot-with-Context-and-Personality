@@ -361,7 +361,7 @@ def find_and_evaluate_triggers(model, tokenizer, templatizer, predictor, embeddi
         # 디버깅: candidates와 trigger_ids의 크기 확인
         logger.info(f"Candidates shape: {candidates.shape}")  # Candidates 크기 확인
         logger.info(f"Trigger IDs shape: {trigger_ids.shape}")  # Trigger IDs 크기 확인
-
+        logger.info(f"Token to flip: {token_to_flip}")
 
         candidate_scores = torch.zeros(len(candidates), device=device)
 
