@@ -31,10 +31,6 @@ class GradientStorage:
         module.register_backward_hook(self.hook)
 
     def hook(self, module, grad_in, grad_out):
-        ###
-        # 디버그 코드 추가: grad_out[0]의 크기 확인
-        logger.info(f"Gradient hook output shape: {grad_out[0].shape}")
-
         self._stored_gradient = grad_out[0]
 
     def get(self):
@@ -56,25 +52,19 @@ class PredictWrapper:
         model_inputs = model_inputs.copy()
         trigger_mask = model_inputs.pop('trigger_mask')
         # predict_mask = model_inputs.pop('predict_mask')
-        predict_mask = model_inputs.pop('predict_mask')
+        model_inputs.pop('predict_mask', None)
         model_inputs = replace_trigger_tokens(model_inputs, trigger_ids, trigger_mask)
         
-        logits, *_ = self._model(**model_inputs) # logits: (batch_size, num_labels)
-
-        # logits = logits.view(logits.size(0), self.num_labels)  # 다중 레이블 예측
+        logits, *_ = self._model(**model_inputs)
         
         # predict_logits = logits.masked_select(predict_mask.unsqueeze(-1)).view(logits.size(0), self.num_labels, -1)
         # predict_logits = logits  # 모델의 출력을 그대로 사용
         
         # logits을 (batch_size, num_labels, num_classes)로 변환
         # predict_logits = logits.view(logits.size(0), self.num_labels, 2)
-        # if predict_mask is not None:
-        #     predict_logits = logits.masked_select(predict_mask).view(logits.size(0), self.num_labels)
-        # else:
-        #     predict_logits = logits
-
-
-        return logits
+        predict_logits = logits
+        
+        return predict_logits   
 
 
 class AccuracyFn:
@@ -95,15 +85,6 @@ class AccuracyFn:
         logger.info(self._all_label_ids)
 
     def __call__(self, predict_logits, gold_label_ids):
-
-        preds = (predict_logits > 0).long()
-        correct = (preds == gold_label_ids).float()
-        accuracy = correct.mean(dim=1)  # 각 샘플별로 평균 정확도 계산
-
-        
-        return accuracy  # (batch_size,) 크기의 텐서 반환
-
-
         # # Get total log-probability for the true label
         # gold_logp = get_loss(predict_logits, gold_label_ids , self.num_labels)
 
@@ -121,19 +102,38 @@ class AccuracyFn:
         # ge_count = all_label_logp.le(gold_logp.unsqueeze(-1)).sum(-1)
         # correct = ge_count.le(1)  # less than in case of num. prec. issues
 
+
+         # 로짓을 확률로 변환하고 임계값 0.5 기준으로 0/1 예측
+        preds = (torch.sigmoid(predict_logits) > 0.5).long()  # (batch_size, num_labels)
+
+        # 예측값과 실제값 비교
+        correct = (preds == gold_label_ids).float()  # 일치하면 1, 아니면 0
+        accuracy_per_sample = correct.mean(dim=-1)  # 샘플별 정확도 계산
+        batch_accuracy = accuracy_per_sample.mean()  # 배치 전체 평균 정확도
+
+        return batch_accuracy
+    
         # return correct.float()
 
     # TODO: @rloganiv - This is hacky. Replace with something sensible.
     def predict(self, predict_logits):
-        bsz = predict_logits.size(0)
-        all_label_logp = []
-        for label_ids in self._all_label_ids:
-            label_logp = get_loss(predict_logits, label_ids.repeat(bsz, 1), self.num_labels)
-            all_label_logp.append(label_logp)
-        all_label_logp = torch.stack(all_label_logp, dim=-1)
-        _, predictions = all_label_logp.max(dim=-1)
-        predictions = [self._pred_to_label[x] for x in predictions.tolist()]
-        return predictions
+        # bsz = predict_logits.size(0)
+        # all_label_logp = []
+        # for label_ids in self._all_label_ids:
+        #     label_logp = get_loss(predict_logits, label_ids.repeat(bsz, 1), self.num_labels)
+        #     all_label_logp.append(label_logp)
+        # all_label_logp = torch.stack(all_label_logp, dim=-1)
+        # _, predictions = all_label_logp.max(dim=-1)
+        # predictions = [self._pred_to_label[x] for x in predictions.tolist()]
+        # return predictions
+
+        """
+        예측값 반환 함수.
+        - predict_logits: (batch_size, num_labels) 형태의 로짓
+        - 반환값: 0/1로 변환된 레이블 예측값
+        """
+        preds = (torch.sigmoid(predict_logits) > 0.5).long()
+        return preds
 
 
 def load_pretrained(model_name):
@@ -171,23 +171,12 @@ def hotflip_attack(averaged_grad,
                    filter=None):
     """Returns the top candidate replacements."""
     with torch.no_grad():
-
-        # 평균 그라디언트를 올바른 차원으로 변환
-        if averaged_grad.dim() == 3:  # (batch_size, num_trigger_tokens, embedding_dim)
-            averaged_grad = averaged_grad.mean(dim=0)  # (num_trigger_tokens, embedding_dim)
-
-
         gradient_dot_embedding_matrix = torch.matmul(
             # embedding_matrix,
             # averaged_grad
             
-            # averaged_grad.view(-1, embedding_matrix.size(1)), embedding_matrix.t()
-            
-            averaged_grad  # shape: (embedding_dim,)
-            ,embedding_matrix.T # (num_trigger_tokens, vocab_size)
-
-        ).sum(dim=0)  # (vocab_size,)
-
+            averaged_grad.view(-1, embedding_matrix.size(1)), embedding_matrix.t()
+        )
         if filter is not None:
             gradient_dot_embedding_matrix -= filter
         if not increase_loss:
@@ -259,7 +248,7 @@ def apply_trigger_to_system_prompt(model_inputs, trigger_tokens, tokenizer):
 
 
 
-def get_loss(predict_logits, label_ids, num_labels=None):
+def get_loss(predict_logits, label_ids, num_labels):
     
     '''
     predict_logp = F.log_softmax(predict_logits, dim=-1)
@@ -270,9 +259,8 @@ def get_loss(predict_logits, label_ids, num_labels=None):
     # loss = sum(F.cross_entropy(predict_logits[:, i, :], label_ids[:, i]) for i in range(num_labels)) / num_labels
     
     # predict_logits와 label_ids의 차원에 맞게 손실 계산
-    loss_fct = torch.nn.BCEWithLogitsLoss()
-    loss = loss_fct(predict_logits, label_ids.float())
-
+    loss_fn = torch.nn.BCEWithLogitsLoss()
+    loss = loss_fn(predict_logits, label_ids.float())  # (batch_size, num_labels)
     return loss
     # return -target_logp
 
@@ -350,7 +338,6 @@ def find_and_evaluate_triggers(model, tokenizer, templatizer, predictor, embeddi
         assert len(trigger_ids) == templatizer.num_trigger_tokens
     else:
         trigger_ids = [tokenizer.mask_token_id] * templatizer.num_trigger_tokens
-        logger.debug("Using [MASK] as initial trigger tokens.")
     
     # 트리거 토큰의 길이와 템플릿의 [T] 개수가 맞는지 확인하는 부분
     assert len(trigger_ids) == templatizer.num_trigger_tokens, \
@@ -367,33 +354,22 @@ def find_and_evaluate_triggers(model, tokenizer, templatizer, predictor, embeddi
     logger.info('Starting trigger search...')
     start = time.time()
 
-    ###
-    logger.info(f'Initial dev metric: {dev_metric}')
-
 
     for i in range(args.iters):
-
-        ###
-        logger.info(f'Iteration: {i}/{args.iters}')
-        if i >= args.iters:
-            logger.info('Maximum iterations reached. Breaking out.')
-            break
-
-        ###
+        logger.info(f'Iteration: {i}')
         averaged_grad = accumulate_gradients(model, predictor, train_loader, trigger_ids, embedding_gradient, args)
 
         # 후보자 생성 및 평가
         logger.info('Evaluating Candidates')
         token_to_flip = random.randrange(templatizer.num_trigger_tokens)
         best_candidate_score, best_candidate_idx, candidates = evaluate_candidates(
-            model, predictor, train_loader, averaged_grad, trigger_ids, args, tokenizer, embeddings, filter, token_to_flip, evaluation_fn, device
+            model, predictor, train_loader, averaged_grad, trigger_ids, args, tokenizer, embeddings, filter, token_to_flip, evaluation_fn
         )
 
         if best_candidate_score > best_dev_metric:
             logger.info('Better trigger detected.')
             trigger_ids[:, token_to_flip] = candidates[best_candidate_idx]
             best_dev_metric = best_candidate_score
-            best_trigger_ids = trigger_ids.clone()
         else:
             logger.info('No improvement detected. Skipping evaluation.')
             continue
@@ -431,23 +407,31 @@ def accumulate_gradients(model, predictor, train_loader, trigger_ids, embedding_
         
         
         # Trigger 토큰을 교체하고 예측 수행
-        predict_logits = predictor(model_inputs, trigger_ids)
-        loss = get_loss(predict_logits, labels, args.num_labels)
-        
+        predict_logits = predictor(model_inputs, trigger_ids) # (batch_size, num_labels)
+
+
+        # predict_logits = predict_logits.view(-1, args.num_labels, 3)  # 로짓의 형태 조정
+
+        # 손실 계산 및 역전파
+        # 각 레이블별로 손실을 계산하고 평균
+        # loss = sum(F.cross_entropy(predict_logits[:, i, :], labels[:, i]) for i in range(args.num_labels)) / args.num_labels
+        # 손실 계산 및 역전파
+        # loss = 0
+        # for i in range(args.num_labels):
+        #     # print(f"predict_logits[:, {i}, :].shape: {predict_logits[:, i, :].shape}")
+        #     # print(f"labels[:, {i}].shape: {labels[:, i].shape}")
+        #     loss += F.cross_entropy(predict_logits[:, i, :], labels[:, i])
+        # loss = loss / args.num_labels
+
+        loss = get_loss(predict_logits, labels, args.num_labels)  # 수정: BCE 손실 사용
+
+               
         
         model.zero_grad()  # 그라디언트 초기화
         loss.backward()
         
         # 그라디언트 저장
         current_grad = embedding_gradient.get()
-        if current_grad is None:
-            logger.error("Gradient is None. Skipping gradient accumulation for this batch.")
-            continue
-
-        # 디버그 코드 추가: Gradient의 크기 확인
-
-        ###
-        logger.info(f"Current gradient shape: {current_grad.shape}")
 
         # 그라디언트 저장
         if embedding_gradient._stored_gradient is None:
@@ -458,13 +442,6 @@ def accumulate_gradients(model, predictor, train_loader, trigger_ids, embedding_
 
     # 평균 그라디언트를 반환
     averaged_grad = embedding_gradient._stored_gradient / args.accumulation_steps
-    
-    ###
-    # 디버그 코드 추가: Averaged gradient의 크기 확인
-    logger.info(f"Accumulated gradient shape: {embedding_gradient._stored_gradient.shape}")
-    logger.info(f"Averaged gradient shape: {averaged_grad.shape}")
-
-
     return averaged_grad
 
 
@@ -507,28 +484,23 @@ def print_lama_template(best_trigger_ids, tokenizer, templatizer, args):
     print(json.dumps(out))
 
 def evaluate_triggers(predictor, dev_loader, evaluation_fn, trigger_ids, device):
-    total_accuracy = []
+    total_correct = 0
+    total_count = 0
     for model_inputs, labels in tqdm(dev_loader):
         model_inputs = {k: v.to(device) for k, v in model_inputs.items()}
         labels = labels.to(device)
         with torch.no_grad():
             predict_logits = predictor(model_inputs, trigger_ids)
             # predict_logits = predict_logits.view(-1, args.num_labels, 3)
-            # preds = torch.argmax(predict_logits, dim=-1)
-            batch_accuracy = evaluation_fn(predict_logits, labels)
-
-            # 0차원 텐서 대응
-            if batch_accuracy.dim() == 0:  
-                batch_accuracy = batch_accuracy.unsqueeze(0)
-            
-            total_accuracy.extend(batch_accuracy.cpu().numpy())
-
-            total_accuracy.extend(batch_accuracy.cpu().numpy())
-    dev_metric = np.mean(total_accuracy)
-    logger.info(f'Dev metric (accuracy): {dev_metric}')
+            preds = (torch.sigmoid(predict_logits) > 0.5).long()  # 수정: 이진 분류
+            correct = (preds == labels).sum().item()
+            total_correct += correct
+            total_count += labels.numel()
+    dev_metric = total_correct / (total_count + 1e-13)
+    logger.info(f'Dev metric: {dev_metric}')
     return dev_metric
 
-def evaluate_candidates(model, predictor, dev_loader, averaged_grad, trigger_ids, args, tokenizer, embeddings, filter, token_to_flip, evaluation_fn, device):
+def evaluate_candidates(model, predictor, train_loader, averaged_grad, trigger_ids, args, tokenizer, embeddings, filter, token_to_flip, evaluation_fn):
     """
     Evaluate the candidate tokens to find the best replacement for trigger optimization.
     """
@@ -543,57 +515,18 @@ def evaluate_candidates(model, predictor, dev_loader, averaged_grad, trigger_ids
                                 embeddings.weight,
                                 increase_loss=False,
                                 num_candidates=args.num_cand,
-                                filter=filter)  
+                                filter=filter)
     
+    # Ensure candidates and candidate_scores have the same size
+    num_candidates = len(candidates)
+    # candidate_scores = torch.zeros(args.num_cand, device=trigger_ids.device)
+    candidate_scores = torch.zeros(num_candidates, device=trigger_ids.device)
 
-    # 후보 점수 저장 리스트
-    candidate_scores = []
+    current_score = 0    
+    denom = 0
 
-    ###
-    logger.info(f"candidates shape: {candidates.shape}")
-
-    # 검증 데이터셋을 이용해 각 후보 점수 계산
-    for i, candidate in enumerate(candidates):
-        temp_trigger_ids = trigger_ids.clone()  # 트리거 복사
-
-        ###
-        logger.info(f"candidate value: {candidate}")
-        logger.info(f"temp_trigger_ids shape: {temp_trigger_ids.shape}")  # 추가
-        logger.info(f"temp_trigger_ids[:, token_to_flip] shape: {temp_trigger_ids[:, token_to_flip].shape}")  # 추가
-        logger.info(f"candidate shape: {candidate.shape}")  # 추가
-
-
-        temp_trigger_ids[:, token_to_flip] = candidate  # 특정 위치의 토큰 변경
-
-
-
-        
-
-
-
-        # 검증 데이터 전체를 사용해 평가
-        dev_metric = evaluate_triggers(
-            predictor, dev_loader, evaluation_fn, temp_trigger_ids, device
-        )
-        candidate_scores.append(dev_metric)  # 점수 저장
-
-    # 후보 점수 리스트를 텐서로 변환
-    candidate_scores = torch.tensor(candidate_scores, device=device)
-
-    # 최고 점수와 해당 후보 인덱스 선택
-    best_candidate_idx = candidate_scores.argmax()
-    best_candidate_score = candidate_scores[best_candidate_idx]
-
-    return best_candidate_score.item(), best_candidate_idx.item(), candidates
-
-
-
-
-
-    
-
-    '''
-
+    train_iter = iter(train_loader)
+    pbar = tqdm(range(args.accumulation_steps))
     
     for step in pbar:
         try:
@@ -619,31 +552,11 @@ def evaluate_candidates(model, predictor, dev_loader, averaged_grad, trigger_ids
                 predict_logits = predictor(model_inputs, temp_trigger)
                 eval_metric = evaluation_fn(predict_logits, labels)
             candidate_scores[i] += eval_metric.sum()
-    '''
-    # for model_inputs, labels in train_iter:
-    #     model_inputs = {k: v.to(trigger_ids.device) for k, v in model_inputs.items()}
-    #     labels = labels.to(trigger_ids.device)
 
-    #     with torch.no_grad():
-    #         for i, candidate in enumerate(candidates):
-    #             temp_trigger = trigger_ids.clone()
-    #             temp_trigger[:, token_to_flip] = candidate
+    best_candidate_score = candidate_scores.max()
+    best_candidate_idx = candidate_scores.argmax()
 
-    #             predict_logits = predictor(model_inputs, temp_trigger)
-    #             eval_metric = evaluation_fn(predict_logits, labels)
-    #             candidate_scores[i] += eval_metric.sum()
-
-
-
-
-
-    # best_candidate_score = candidate_scores.max()
-    # best_candidate_idx = candidate_scores.argmax()
-
-    # best_candidate_idx = candidate_scores.argmax()
-    # best_candidate_score = candidate_scores[best_candidate_idx]
-
-    # return best_candidate_score, best_candidate_idx, candidates
+    return best_candidate_score, best_candidate_idx, candidates
 
 def run_model(args):
 
