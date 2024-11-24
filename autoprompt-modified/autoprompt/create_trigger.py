@@ -61,7 +61,7 @@ class PredictWrapper:
         
         logits, *_ = self._model(**model_inputs) # logits: (batch_size, num_labels)
 
-        logits = logits.view(logits.size(0), self.num_labels)  # 다중 레이블 예측
+        # logits = logits.view(logits.size(0), self.num_labels)  # 다중 레이블 예측
         
         # predict_logits = logits.masked_select(predict_mask.unsqueeze(-1)).view(logits.size(0), self.num_labels, -1)
         # predict_logits = logits  # 모델의 출력을 그대로 사용
@@ -367,9 +367,19 @@ def find_and_evaluate_triggers(model, tokenizer, templatizer, predictor, embeddi
     logger.info('Starting trigger search...')
     start = time.time()
 
+    ###
+    logger.info(f'Initial dev metric: {dev_metric}')
+
 
     for i in range(args.iters):
-        logger.info(f'Iteration: {i}')
+
+        ###
+        logger.info(f'Iteration: {i}/{args.iters}')
+        if i >= args.iters:
+            logger.info('Maximum iterations reached. Breaking out.')
+            break
+
+        ###
         averaged_grad = accumulate_gradients(model, predictor, train_loader, trigger_ids, embedding_gradient, args)
 
         # 후보자 생성 및 평가
@@ -435,7 +445,7 @@ def accumulate_gradients(model, predictor, train_loader, trigger_ids, embedding_
             continue
 
         # 디버그 코드 추가: Gradient의 크기 확인
-        
+
         ###
         logger.info(f"Current gradient shape: {current_grad.shape}")
 
