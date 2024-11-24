@@ -171,15 +171,23 @@ def hotflip_attack(averaged_grad,
                    filter=None):
     """Returns the top candidate replacements."""
     with torch.no_grad():
+
+        # 평균 그라디언트를 올바른 차원으로 변환
+        if averaged_grad.dim() == 3:  # (batch_size, num_trigger_tokens, embedding_dim)
+            averaged_grad = averaged_grad.mean(dim=0)  # (num_trigger_tokens, embedding_dim)
+
+
         gradient_dot_embedding_matrix = torch.matmul(
             # embedding_matrix,
             # averaged_grad
             
             # averaged_grad.view(-1, embedding_matrix.size(1)), embedding_matrix.t()
-            embedding_matrix,
+            
             averaged_grad  # shape: (embedding_dim,)
+            ,embedding_matrix.T # (num_trigger_tokens, vocab_size)
 
-        )
+        ).sum(dim=0)  # (vocab_size,)
+
         if filter is not None:
             gradient_dot_embedding_matrix -= filter
         if not increase_loss:
@@ -427,6 +435,7 @@ def accumulate_gradients(model, predictor, train_loader, trigger_ids, embedding_
             continue
 
         # 디버그 코드 추가: Gradient의 크기 확인
+        
         ###
         logger.info(f"Current gradient shape: {current_grad.shape}")
 
