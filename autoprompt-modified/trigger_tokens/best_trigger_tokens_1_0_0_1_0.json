@@ -1,1 +1,1 @@
-{"best_trigger_tokens": ["[CLS]", "[CLS]", "[CLS]"], "best_score": 0.8263608183508989}
+{"best_trigger_tokens": ["##leaf", "[MASK]", "dependence"], "best_score": 109.0}

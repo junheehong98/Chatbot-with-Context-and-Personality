@@ -1,1 +1,1 @@
-{"best_trigger_tokens": ["[CLS]", "[CLS]", "[CLS]"], "best_score": 0.8275015499070055}
+{"best_trigger_tokens": ["[MASK]", "[MASK]", "##uid"], "best_score": 113.00000762939453}
