@@ -380,7 +380,7 @@ def find_and_evaluate_triggers(model, tokenizer, templatizer, predictor, embeddi
         averaged_grad = accumulate_gradients(model, predictor, train_loader, trigger_ids, embedding_gradient, args)
 
         ###
-        logger.info(f"Averaged gradient: {averaged_grad}")
+        logger.info(f"Averaged gradient shape: {averaged_grad.shape}")
 
         # 후보자 생성 및 평가
         logger.info('Evaluating Candidates')
@@ -393,13 +393,13 @@ def find_and_evaluate_triggers(model, tokenizer, templatizer, predictor, embeddi
             logger.info('Better trigger detected.')
 
             ###
-            logger.debug(f"Before update: {tokenizer.convert_ids_to_tokens(trigger_ids.squeeze(0))}")
+            logger.info(f"Before update: {tokenizer.convert_ids_to_tokens(trigger_ids.squeeze(0))}")
 
 
             trigger_ids[:, token_to_flip] = candidates[best_candidate_idx]
 
             ###
-            logger.debug(f"After update: {tokenizer.convert_ids_to_tokens(trigger_ids.squeeze(0))}")
+            logger.info(f"After update: {tokenizer.convert_ids_to_tokens(trigger_ids.squeeze(0))}")
 
 
 
