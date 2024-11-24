@@ -178,11 +178,25 @@ def hotflip_attack(averaged_grad,
             
             averaged_grad.view(-1, embedding_matrix.size(1)), embedding_matrix.t()
         )
+
+        ###
+
+        # 디버깅: 후보 점수 행렬 출력
+        logger.debug(f"Gradient dot embedding matrix shape: {gradient_dot_embedding_matrix.shape}")
+        logger.debug(f"Gradient dot embedding matrix values: {gradient_dot_embedding_matrix}")
+
+        ###
+
+
+
         if filter is not None:
             gradient_dot_embedding_matrix -= filter
         if not increase_loss:
             gradient_dot_embedding_matrix *= -1
         _, top_k_ids = gradient_dot_embedding_matrix.topk(num_candidates)
+        
+        ###
+        logger.debug(f"Top-k candidate IDs: {top_k_ids}")
 
     return top_k_ids
 
@@ -377,7 +391,18 @@ def find_and_evaluate_triggers(model, tokenizer, templatizer, predictor, embeddi
 
         if best_candidate_score > best_dev_metric:
             logger.info('Better trigger detected.')
+
+            ###
+            logger.debug(f"Before update: {tokenizer.convert_ids_to_tokens(trigger_ids.squeeze(0))}")
+
+
             trigger_ids[:, token_to_flip] = candidates[best_candidate_idx]
+
+            ###
+            logger.debug(f"After update: {tokenizer.convert_ids_to_tokens(trigger_ids.squeeze(0))}")
+
+
+
             best_dev_metric = best_candidate_score
 
             ###
@@ -445,6 +470,17 @@ def accumulate_gradients(model, predictor, train_loader, trigger_ids, embedding_
         # 그라디언트 저장
         current_grad = embedding_gradient.get()
 
+        ###
+        # 디버깅: 현재 그라디언트 확인
+        if current_grad is not None:
+            logger.debug(f"Current gradient shape: {current_grad.shape}")
+            logger.debug(f"Current gradient values: {current_grad}")
+        else:
+            logger.warning("Gradient not captured. Check embedding hook or loss.backward().")
+        ###
+
+
+
         # 그라디언트 저장
         if embedding_gradient._stored_gradient is None:
             embedding_gradient._stored_gradient = current_grad.clone()
@@ -456,7 +492,7 @@ def accumulate_gradients(model, predictor, train_loader, trigger_ids, embedding_
     averaged_grad = embedding_gradient._stored_gradient / args.accumulation_steps
     
     ###
-    logger.info(f"Averaged gradient: {averaged_grad}")  # 추가
+    #logger.info(f"Averaged gradient: {averaged_grad}")  # 추가
     logger.info(f"Averaged gradient shape: {averaged_grad.shape}")
 
     return averaged_grad
@@ -569,6 +605,12 @@ def evaluate_candidates(model, predictor, train_loader, averaged_grad, trigger_i
                 predict_logits = predictor(model_inputs, temp_trigger)
                 eval_metric = evaluation_fn(predict_logits, labels)
             candidate_scores[i] += eval_metric.sum()
+
+
+            ###
+            # 디버깅: 각 후보 점수 출력
+            logger.debug(f"Candidate {i} (ID: {candidate[0]}), Score: {candidate_scores[i]}")
+
 
     best_candidate_score = candidate_scores.max()
     best_candidate_idx = candidate_scores.argmax()
