@@ -31,6 +31,10 @@ class GradientStorage:
         module.register_backward_hook(self.hook)
 
     def hook(self, module, grad_in, grad_out):
+        ###
+        # 디버그 코드 추가: grad_out[0]의 크기 확인
+        logger.info(f"Gradient hook output shape: {grad_out[0].shape}")
+
         self._stored_gradient = grad_out[0]
 
     def get(self):
@@ -422,6 +426,10 @@ def accumulate_gradients(model, predictor, train_loader, trigger_ids, embedding_
             logger.error("Gradient is None. Skipping gradient accumulation for this batch.")
             continue
 
+        # 디버그 코드 추가: Gradient의 크기 확인
+        ###
+        logger.info(f"Current gradient shape: {current_grad.shape}")
+
         # 그라디언트 저장
         if embedding_gradient._stored_gradient is None:
             embedding_gradient._stored_gradient = current_grad.clone()
@@ -432,6 +440,12 @@ def accumulate_gradients(model, predictor, train_loader, trigger_ids, embedding_
     # 평균 그라디언트를 반환
     averaged_grad = embedding_gradient._stored_gradient / args.accumulation_steps
     
+    ###
+    # 디버그 코드 추가: Averaged gradient의 크기 확인
+    logger.info(f"Accumulated gradient shape: {embedding_gradient._stored_gradient.shape}")
+    logger.info(f"Averaged gradient shape: {averaged_grad.shape}")
+
+
     return averaged_grad
 
 
@@ -516,12 +530,14 @@ def evaluate_candidates(model, predictor, dev_loader, averaged_grad, trigger_ids
     # 후보 점수 저장 리스트
     candidate_scores = []
 
+    ###
     logger.info(f"candidates shape: {candidates.shape}")
 
     # 검증 데이터셋을 이용해 각 후보 점수 계산
     for i, candidate in enumerate(candidates):
         temp_trigger_ids = trigger_ids.clone()  # 트리거 복사
 
+        ###
         logger.info(f"candidate value: {candidate}")
         logger.info(f"temp_trigger_ids shape: {temp_trigger_ids.shape}")  # 추가
         logger.info(f"temp_trigger_ids[:, token_to_flip] shape: {temp_trigger_ids[:, token_to_flip].shape}")  # 추가
