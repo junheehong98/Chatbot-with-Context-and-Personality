@@ -56,6 +56,8 @@ class PredictWrapper:
         model_inputs = replace_trigger_tokens(model_inputs, trigger_ids, trigger_mask)
         
         logits, *_ = self._model(**model_inputs) # logits: (batch_size, num_labels)
+
+        logits = logits.view(logits.size(0), self.num_labels)  # 다중 레이블 예측
         
         # predict_logits = logits.masked_select(predict_mask.unsqueeze(-1)).view(logits.size(0), self.num_labels, -1)
         # predict_logits = logits  # 모델의 출력을 그대로 사용
@@ -94,9 +96,7 @@ class AccuracyFn:
         correct = (preds == gold_label_ids).float()
         accuracy = correct.mean(dim=1)  # 각 샘플별로 평균 정확도 계산
 
-        # 0차원 대응
-        if accuracy.dim() == 0:  
-            accuracy = accuracy.unsqueeze(0)
+        
         return accuracy  # (batch_size,) 크기의 텐서 반환
 
 
@@ -431,6 +431,7 @@ def accumulate_gradients(model, predictor, train_loader, trigger_ids, embedding_
 
     # 평균 그라디언트를 반환
     averaged_grad = embedding_gradient._stored_gradient / args.accumulation_steps
+    
     return averaged_grad
 
 
