@@ -183,7 +183,7 @@ def hotflip_attack(averaged_grad,
 
         # 디버깅: 후보 점수 행렬 출력
         logger.debug(f"Gradient dot embedding matrix shape: {gradient_dot_embedding_matrix.shape}")
-        logger.debug(f"Gradient dot embedding matrix values: {gradient_dot_embedding_matrix}")
+        # logger.debug(f"Gradient dot embedding matrix values: {gradient_dot_embedding_matrix}")
 
         ###
 
@@ -474,7 +474,7 @@ def accumulate_gradients(model, predictor, train_loader, trigger_ids, embedding_
         # 디버깅: 현재 그라디언트 확인
         if current_grad is not None:
             logger.debug(f"Current gradient shape: {current_grad.shape}")
-            logger.debug(f"Current gradient values: {current_grad}")
+            # logger.debug(f"Current gradient values: {current_grad}")
         else:
             logger.warning("Gradient not captured. Check embedding hook or loss.backward().")
         ###
@@ -609,7 +609,7 @@ def evaluate_candidates(model, predictor, train_loader, averaged_grad, trigger_i
 
             ###
             # 디버깅: 각 후보 점수 출력
-            logger.debug(f"Candidate {i} (ID: {candidate[0]}), Score: {candidate_scores[i]}")
+            # logger.debug(f"Candidate {i} (ID: {candidate[0]}), Score: {candidate_scores[i]}")
 
 
     best_candidate_score = candidate_scores.max()
