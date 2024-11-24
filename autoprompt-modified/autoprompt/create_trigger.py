@@ -132,9 +132,14 @@ def save_best_trigger_tokens(trigger_tokens, scores, combination, output_dir='tr
     Path(output_dir).mkdir(parents=True, exist_ok=True)  # 디렉토리 생성
     file_name = '_'.join(map(str, combination))
     file_path = Path(output_dir) / f'best_trigger_tokens_{file_name}.json'
+
+    # JSON 직렬화를 위해 데이터 타입 변환
+    trigger_tokens_serializable = [str(token) for token in trigger_tokens] if not isinstance(trigger_tokens, list) else trigger_tokens
+
+
     data = {
-        'best_trigger_tokens': trigger_tokens,
-        'best_score': scores
+        'best_trigger_tokens': trigger_tokens_serializable,
+        'best_score': float(scores)  # scores를 float로 변환
     }
     with open(file_path, 'w') as f:
         json.dump(data, f)
