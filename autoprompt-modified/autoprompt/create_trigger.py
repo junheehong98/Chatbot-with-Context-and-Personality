@@ -316,11 +316,11 @@ def create_token_filter(tokenizer, args, label_map, train_loader):
                 continue
             # Filter special tokens.
             if idx in tokenizer.all_special_ids:
-                logger.debug('Filtered: %s', word)
+                ### logger.debug('Filtered: %s', word)
                 filter[idx] = -1e32
             # Filter capitalized words (lazy way to remove proper nouns).
             if isupper(idx, tokenizer):
-                logger.debug('Filtered: %s', word)
+                ### logger.debug('Filtered: %s', word)
                 filter[idx] = -1e32
     return filter
 
