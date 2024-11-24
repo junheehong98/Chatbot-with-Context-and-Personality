@@ -28,7 +28,8 @@ class GradientStorage:
     """
     def __init__(self, module):
         self._stored_gradient = None
-        module.register_backward_hook(self.hook)
+        # module.register_backward_hook(self.hook)
+        module.register_full_backward_hook(self.hook)
 
     def hook(self, module, grad_in, grad_out):
         self._stored_gradient = grad_out[0]
@@ -357,7 +358,15 @@ def find_and_evaluate_triggers(model, tokenizer, templatizer, predictor, embeddi
 
     for i in range(args.iters):
         logger.info(f'Iteration: {i}')
+
+        ###
+        logger.info(f"Current trigger IDs: {trigger_ids}")  # 추가
+
+
         averaged_grad = accumulate_gradients(model, predictor, train_loader, trigger_ids, embedding_gradient, args)
+
+        ###
+        logger.info(f"Averaged gradient: {averaged_grad}")
 
         # 후보자 생성 및 평가
         logger.info('Evaluating Candidates')
@@ -370,6 +379,9 @@ def find_and_evaluate_triggers(model, tokenizer, templatizer, predictor, embeddi
             logger.info('Better trigger detected.')
             trigger_ids[:, token_to_flip] = candidates[best_candidate_idx]
             best_dev_metric = best_candidate_score
+
+            ###
+            logger.info(f"Updated trigger tokens: {tokenizer.convert_ids_to_tokens(trigger_ids.squeeze(0))}")  # 추가
         else:
             logger.info('No improvement detected. Skipping evaluation.')
             continue
@@ -442,6 +454,11 @@ def accumulate_gradients(model, predictor, train_loader, trigger_ids, embedding_
 
     # 평균 그라디언트를 반환
     averaged_grad = embedding_gradient._stored_gradient / args.accumulation_steps
+    
+    ###
+    logger.info(f"Averaged gradient: {averaged_grad}")  # 추가
+    logger.info(f"Averaged gradient shape: {averaged_grad.shape}")
+
     return averaged_grad
 
 
@@ -555,6 +572,9 @@ def evaluate_candidates(model, predictor, train_loader, averaged_grad, trigger_i
 
     best_candidate_score = candidate_scores.max()
     best_candidate_idx = candidate_scores.argmax()
+
+    ###
+    logger.info(f"Best candidate score: {best_candidate_score}, Index: {best_candidate_idx}")
 
     return best_candidate_score, best_candidate_idx, candidates
 
