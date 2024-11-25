@@ -6,35 +6,27 @@
     <title>Chatbot</title>
     <link rel="stylesheet" href="static/css/chat_style.css">
     <style>
-        .chat-message {
-            display: flex;
-            align-items: flex-start;
-            margin-bottom: 10px;
+        .rating-inline {
+            display: inline-flex;
+            gap: 3px; /* 버튼 사이 간격 */
+            margin-left: 10px; /* 텍스트와 버튼 사이 간격 */
+            vertical-align: middle;
+            justify-content: flex-end; /* 버튼을 오른쪽 정렬 */
+            width: 100%; /* 부모 요소가 차지하는 가로폭을 모두 사용 */
         }
-        .bot-message {
-            flex: 1;
-            position: relative;
-        }
-        .rating-box {
-            display: flex;
-            flex-direction: row;
-            align-items: center;
-            margin-right: 10px;
-            padding: 10px;
-            background-color: #bbb7b7;
-            border-radius: 5px;
-            float:right;
-            max-width:40%;
-            align-self: flex-start;
-        }
-        .evaluation-btn {
-            background-color: #6c996c;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            font-size: 10pt;
+
+        .inline-rating-btn {
+            font-size: 14px; 
+            background: #f9f9f9; 
+            border: none; 
             cursor: pointer;
-            border-radius: 20px;
+            padding-top: 1px; 
+            padding: 1px;
+            padding-bottom: 10px;
+        }
+
+        .inline-rating-btn:hover {
+            transform: scale(1.1); /* 살짝 확대 효과 */
         }
     </style>
 </head>
@@ -51,18 +43,14 @@
                     <p><strong>You:</strong> {{ user_msg }}</p>
                 </div>
                 <div class="chat-message bot-message">
-                    <p><strong>Chatbot:</strong> {{ bot_msg }}</p> 
-                </div>
-                <div class="rating-box">
-                    <button class="rating-button" onclick="toggleRatingButtons(this)">Rate</button>
-                    <div class="evaluation-buttons" style="display: none;">
+                    <p><strong>Chatbot:</strong> {{ bot_msg }}</p>
+                    <span class="rating-inline">
                         <form method="POST" action="/evaluate" style="display: inline;">
                             <input type="hidden" name="bot_msg" value="{{ bot_msg }}">
-                            <button type="submit" name="rating" value="good" class="evaluation-btn">Good</button>
-                            <button type="submit" name="rating" value="soso" class="evaluation-btn">So-so</button>
-                            <button type="submit" name="rating" value="bad" class="evaluation-btn">Bad</button>
+                            <button type="submit" name="rating" value="good" class="inline-rating-btn">👍</button>
+                            <button type="submit" name="rating" value="bad" class="inline-rating-btn">👎</button>
                         </form>
-                    </div>
+                    </span>
                 </div>
             {% endfor %}
         </div>
@@ -70,7 +58,7 @@
         <div class="chat-input">
             <form id="chat-form" method="post" action="/chat" style="display: flex; width: 100%;">
                 <textarea id="user-input" name="user_input" class="input"></textarea>
-                <button type="submit" id="submit">Send</button>
+                <button type="submit" id="submit" class="send-btn">Send</button>
             </form>
         </div>
     </div>
@@ -81,26 +69,74 @@
             evaluationButtons.style.display = (evaluationButtons.style.display === "none" || evaluationButtons.style.display === "") ? "block" : "none";
         }
 
-        function typeText(element, text, speed = 30) {
+        function typeText(element, htmlText, speed = 30) {
+            const tempDiv = document.createElement('div'); // 임시로 HTML을 처리할 요소
+            tempDiv.innerHTML = htmlText;
+
+            const nodes = Array.from(tempDiv.childNodes); // HTML의 모든 노드를 추출
+            element.innerHTML = ''; // 초기화
+
             let index = 0;
-            element.innerHTML = '';
-            function type() {
-                if (index < text.length) {
-                    element.innerHTML += text.charAt(index);
-                    index++;
-                    setTimeout(type, speed);
+
+            function typeNode() {
+                if (index < nodes.length) {
+                    const node = nodes[index].cloneNode(true); // 현재 노드를 복사
+
+                    if (node.nodeType === Node.TEXT_NODE) {
+                        // 텍스트 노드인 경우
+                        let text = node.textContent;
+                        node.textContent = ''; // 초기화
+                        element.appendChild(node);
+
+                        let charIndex = 0;
+
+                        function typeChar() {
+                            if (charIndex < text.length) {
+                                node.textContent += text[charIndex];
+                                charIndex++;
+                                setTimeout(typeChar, speed);
+                            } else {
+                                index++;
+                                typeNode(); // 다음 노드로 이동
+                            }
+                        }
+
+                        typeChar();
+                    } else {
+                        // 태그 노드인 경우 바로 추가
+                        element.appendChild(node);
+                        index++;
+                        typeNode();
+                    }
                 }
             }
-            type();
+
+            typeNode();
         }
 
         function addBotMessage(botMessage) {
             const botMessageDiv = document.createElement('div');
             botMessageDiv.classList.add('chat-message', 'bot-message');
-            const botLabel = document.createElement('strong');
-            botLabel.textContent = 'Chatbot: ';
+
+            // 메시지 텍스트를 생성
+            const botTextDiv = document.createElement('p');
+            botTextDiv.innerHTML = `<strong>Chatbot:</strong> ${botMessage}`;
+            botMessageDiv.appendChild(botTextDiv);
+
+            // 평점 버튼 추가
+            const ratingSpan = document.createElement('span');
+            ratingSpan.classList.add('rating-inline');
+            ratingSpan.innerHTML = `
+                <form method="POST" action="/evaluate" style="display: inline;">
+                    <input type="hidden" name="bot_msg" value="${botMessage}">
+                    <button type="submit" name="rating" value="good" class="inline-rating-btn">👍</button>
+                    <button type="submit" name="rating" value="bad" class="inline-rating-btn">👎</button>
+                </form>
+            `;
+            botMessageDiv.appendChild(ratingSpan);
+
             document.querySelector('#chat-box').appendChild(botMessageDiv);
-            typeText(botMessageDiv, botMessage);
+
             scrollToBottom();
         }
 
