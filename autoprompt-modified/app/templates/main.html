@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Select Situation and Personality</title>
+    <link rel="stylesheet" href="static/css/main_style.css">
+    <script>
+        function selectSituation(situation, button) {
+            document.getElementById('situationInput').value = situation;
+            const situationButtons = document.querySelectorAll('.situation-btn');
+            situationButtons.forEach(btn => btn.classList.remove('selected-btn'));
+            button.classList.add('selected-btn');
+        }
+
+        function selectCharacteristic(index, characteristic, button) {
+            document.getElementById('characteristic' + index).value = characteristic;
+            const characteristicGroup = document.querySelectorAll(`.characteristic-group-${index} .characteristic-btn`);
+            characteristicGroup.forEach(btn => btn.classList.remove('selected-btn'));
+            button.classList.add('selected-btn');
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1 style="font-size: 36px;">Select Situation and Personality</h1>
+
+        <form action="/" method="post">
+            <h3 style="font-size: 24px;">Select situation</h3>
+            <div>
+                <button type="button" class="situation-btn" onclick="selectSituation('Subway', this)">Subway</button>
+                <button type="button" class="situation-btn" onclick="selectSituation('Lunch', this)">Lunch</button>
+                <button type="button" class="situation-btn" onclick="selectSituation('Library', this)">Library</button>
+                <button type="button" class="situation-btn" onclick="selectSituation('Cafe', this)">Cafe</button>
+                <button type="button" class="situation-btn" onclick="selectSituation('Class Break', this)">Class Break</button>
+            </div>
+            <input type="hidden" name="situation" id="situationInput">
+
+            <h3 style="font-size: 24px;">Select characteristics</h3>
+            <div>
+                {% for characteristic_set in characteristics %}
+                    <div class="characteristic-group characteristic-group-{{ loop.index0 }}" style="text-align: center;">
+                        <button type="button" class="characteristic-btn" onclick="selectCharacteristic('{{ loop.index0 }}', '{{ characteristic_set[0] }}', this)">{{ characteristic_set[0] }}</button>
+                        <button type="button" class="characteristic-btn" onclick="selectCharacteristic('{{ loop.index0 }}', '{{ characteristic_set[1] }}', this)">{{ characteristic_set[1] }}</button>
+                    </div>
+                    <input type="hidden" name="characteristic{{ loop.index0 }}" id="characteristic{{ loop.index0 }}">
+                {% endfor %}
+            </div>
+
+            <button type="submit" class="submit">Start Chatting</button>
+        </form>
+    </div>
+</body>
+</html>
