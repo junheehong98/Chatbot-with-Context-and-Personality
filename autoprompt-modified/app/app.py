@@ -62,15 +62,15 @@ def chat():
     system_prompt = generate_system_prompt(SITUATIONS.index(session['selected_situation']))
 
     if request.method == 'POST':
-        user_input = request.json.get('user_input')  
-        
+        user_input = request.json.get('user_input')
+
         # autoprompt 사용
         trigger_token = run_model(user_input, session['selected_characteristics'])
         user_input_tk = user_input + " " + " ".join(trigger_token["best_trigger_tokens"])
 
         # # autoprompt 미사용
         # user_input_tk = user_input 
-        
+
         if user_input_tk and user_input_tk.strip():  
             conversation = [{"role": "system", "content": system_prompt}]
             for user_msg, bot_msg in session['trim_history']:
@@ -110,25 +110,27 @@ def evaluate():
     rating = request.form.get('rating')
     
     selected_situation = session.get('selected_situation')
-    selected_characteristics = session.get('selected_characteristics')
+    selected_characteristics = tuple(session.get('selected_characteristics')) 
     
-    key = (selected_situation, tuple(selected_characteristics))
+    key = (selected_situation, selected_characteristics)
     
-    if key not in ratings_dict:
-        ratings_dict[key] = []
+    key_str = str(key)
     
-    ratings_dict[key].append([bot_msg, rating])
+    if key_str not in ratings_dict:
+        ratings_dict[key_str] = []
+    
+    ratings_dict[key_str].append([bot_msg, rating])
     
     return render_template('chat.html', chat_history=session['chat_history'])
 
 # 유저가 대화 종료 시 데이터 저장
 @app.route('/end_chat', methods=['POST'])
 def end_chat():
-    user_id = session.get('user_id', 'unknown_user')
-    file_path = f'chat_ratings_{user_id}.json'
+    selected_characteristics = session.get('selected_characteristics')
+    file_path = f'chat_ratings_{selected_characteristics}.json'
     
-    with open(file_path, 'w') as f:
-        json.dump(ratings_dict, f, indent=4)
+    with open('./app/ratings.json', 'w') as f:
+        json.dump(ratings_dict, f, indent=4)  
     
     session.clear()
     return redirect(url_for('main'))
