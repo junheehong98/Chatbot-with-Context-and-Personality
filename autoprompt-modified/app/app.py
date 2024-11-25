@@ -35,12 +35,6 @@ def main():
 
         selected_characteristics = []
 
-        # # Loop through expected characteristics (adjusted to 3 options)
-        # for i in range(5):  
-        #     characteristic = request.form.get(f'characteristic{i}')
-        #     if characteristic: 
-        #         selected_characteristics.append(characteristic)
-
         # Process each characteristic pair
         for i, (option0, option1) in enumerate(characteristics):
             selected = request.form.get(f'characteristic{i}')  # Get selected value
@@ -69,9 +63,14 @@ def chat():
 
     if request.method == 'POST':
         user_input = request.json.get('user_input')  
+        
+        # autoprompt 사용
         trigger_token = run_model(user_input, session['selected_characteristics'])
         user_input_tk = user_input + " " + " ".join(trigger_token["best_trigger_tokens"])
 
+        # # autoprompt 미사용
+        # user_input_tk = user_input 
+        
         if user_input_tk and user_input_tk.strip():  
             conversation = [{"role": "system", "content": system_prompt}]
             for user_msg, bot_msg in session['trim_history']:
