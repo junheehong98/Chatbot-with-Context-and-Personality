@@ -33,23 +33,33 @@ body {
     float: right; /* 사용자 메시지를 오른쪽으로 정렬 */
     background-color: #d1e7dd;
     padding: 10px;
+    padding-bottom: 1px;
+    padding-top: 1px;
     border-radius: 10px;
     max-width: 70%;
     text-align: right;
-    color: #000000;
+    color: #333333;
     background-color: #d9fdd3;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); /* 약간의 그림자를 추가해 입체감 부여 */
     align-self: flex-end;
+    line-height: 1.5;
 }
 .bot-message {
+    display: inline-block; /* 메시지를 깔끔하게 정렬 */
     float: left; /* 봇 메시지를 왼쪽으로 정렬 */
-    padding: 10px;
-    border-radius: 10px;
-    max-width: 70%;
-    text-align: left;
-    color: #000000;
-    align-self: flex-start;
-    background-color: #fff;
+    padding: 12px 15px; /* 패딩을 조금 더 균형 있게 조정 */
+    border-radius: 10px; /* 둥근 모서리 강조 */
+    max-width: 70%; /* 넓이를 조금 늘려서 긴 텍스트도 자연스럽게 표현 */
+    text-align: left; /* 텍스트는 왼쪽 정렬 */
+    color: #333333; /* 더 부드러운 검은색 */
+    background-color: #f9f9f9; /* 연한 회색 배경으로 읽기 편하게 */
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); /* 약간의 그림자를 추가해 입체감 부여 */
+    margin: 10px 0; /* 위아래 간격 유지 */
+    line-height: 1.5;
+    padding-bottom: 5px;
+    padding-top: 1px;
 }
+
 .chat-input {
     display: flex;
     align-items: center;
@@ -83,9 +93,7 @@ button {
     cursor: pointer;
     font-size: 10pt; /* 버튼 글자 크기 */
 }
-button:hover {
-    background-color: #45a049;
-}
+
 .evaluate-form {
     display: inline-block;
     margin-left: 10px;
@@ -94,7 +102,7 @@ button:hover {
 }
 
 
-button[type="submit"] {
+.send-btn {
     background-color: #45a049;
     color: white;
     border: none;
@@ -104,7 +112,7 @@ button[type="submit"] {
     border-radius: 20px;
 }
 
-button[type="submit"]:hover {
+.send-btn:hover {
     background-color: #45a049;
 }
 
